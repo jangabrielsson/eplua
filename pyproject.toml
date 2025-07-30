@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eplua"
+version = "0.1.0"
+description = "Python project using Lupa to run Lua scripts with async timer functionality"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "lupa>=2.0",
+    "asyncio",
+    "aiohttp>=3.8.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "requests>=2.28.0",
+    "tkhtmlview>=0.3.0",  # HTML rendering in tkinter (works with Tcl 9.x)
+]
+
+[project.scripts]
+eplua = "eplua.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=22.0",
+    "flake8>=5.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
