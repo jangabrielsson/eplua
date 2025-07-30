@@ -2,16 +2,13 @@
 UDP functionality for EPLua.
 
 This module provides UDP socket capabilities that can be called from Lua scripts.
-Features:
-- UDP client sockets
-- Async UDP operations with callbacks
-- Send/receive with proper error handling
 """
 
-import asyncio
 import logging
-from typing import Dict
-from .lua_bindings import export_to_lua, get_global_engine
+import asyncio
+import socket
+from typing import Dict, Optional, Tuple
+from eplua.lua_bindings import export_to_lua, get_global_engine, python_to_lua_table
 
 logger = logging.getLogger(__name__)
 

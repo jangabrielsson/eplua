@@ -13,7 +13,7 @@ import asyncio
 import logging
 import ssl
 from typing import Dict, Any, Optional
-from .lua_bindings import export_to_lua, get_global_engine
+from eplua.lua_bindings import export_to_lua, get_global_engine
 
 logger = logging.getLogger(__name__)
 

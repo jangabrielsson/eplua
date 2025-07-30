@@ -76,4 +76,5 @@ ws:connect("wss://echo.websocket.org/")
 -- Keep the script running for a while
 setTimeout(function()
     print("\n=== Example completed ===")
+    os.exit()
 end, 8000)

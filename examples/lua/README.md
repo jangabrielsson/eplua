@@ -17,6 +17,15 @@ These examples demonstrate EPLua's **user-friendly APIs** for end users writing 
 - `net.TCPSocket()` - TCP connections
 - `net.UDPSocket()` - UDP datagrams
 
+### GUI/Windows Module
+- `windows.createWindow()` - Create HTML-capable windows
+- `windows.isAvailable()` - Check GUI availability
+- `windows.htmlSupported()` - Check HTML rendering support
+
+### Utility Modules
+- `json.encode()` / `json.decode()` - JSON processing
+- `lfs.*` - File system operations (LuaFileSystem compatible)
+
 ## Examples
 
 ### `getting_started.lua`
@@ -49,6 +58,27 @@ Complete timer functionality:
 - Timer chains
 - Self-clearing intervals
 - Performance testing
+
+### `test_json.lua`
+JSON processing examples:
+- Encoding Lua tables to JSON
+- Decoding JSON to Lua tables
+- Pretty-printing with formatting
+- Error handling and edge cases
+
+### `windows_example.lua`
+GUI window creation:
+- Creating HTML-capable windows
+- Method chaining interface
+- Beautiful CSS styling
+- Window management
+
+### `test_windows.lua`
+Comprehensive windows testing:
+- Object-oriented and functional interfaces
+- HTML rendering and URL loading
+- Error handling and capabilities checking
+- Multiple window management
 
 ## Usage
 

@@ -6,6 +6,15 @@ Welcome to the EPLua documentation! This directory contains comprehensive docume
 
 - **[PYfunctions.md](PYfunctions.md)** - Complete reference for all `_PY.*` functions available in EPLua
 
+## User APIs Documentation
+
+EPLua provides user-friendly Lua modules that wrap the low-level `_PY.*` functions:
+
+- **[examples/lua/README_WINDOWS.md](../examples/lua/README_WINDOWS.md)** - Windows/GUI module for creating HTML interfaces
+- **[examples/lua/README_JSON.md](../examples/lua/README_JSON.md)** - JSON encoding/decoding module
+- **[NETWORK_MODULES.md](NETWORK_MODULES.md)** - HTTP, WebSocket, MQTT, TCP, UDP modules
+- **[LUAFILESYSTEM.md](LUAFILESYSTEM.md)** - File system operations (LuaFileSystem compatible)
+
 ## Development Documentation
 
 The `dev/` directory contains documentation for developers and contributors:

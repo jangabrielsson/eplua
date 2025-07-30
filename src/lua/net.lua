@@ -807,21 +807,21 @@ net.MQTTConnectReturnCode = {
   NOT_AUTHORIZED = 5
 }
 
--- MQTT Client class (object-oriented, Fibaro style)
-local MQTTClient = {}
-MQTTClient.__index = MQTTClient
+-- MQTT Client namespace
+net.Client = {}
 
-function net.MQTTClient()
-  local self = setmetatable({}, MQTTClient)
-  self.client_id = nil
-  self.connected = false
-  self.event_listeners = {}
-  return self
-end
-
-function MQTTClient:connect(uri, options)
-  self.uri = uri
-  self.options = options or {}
+-- Main MQTT Client creation function (Fibaro style)
+function net.Client.connect(uri, options)
+  local self = {
+    client_id = nil,
+    connected = false,
+    event_listeners = {},
+    callback_id = nil,
+    event_callback_ids = {}
+  }
+  
+  -- Connect to MQTT broker
+  local options = options or {}
   local callback = nil
   if options and options.callback then
     callback = options.callback
@@ -829,143 +829,178 @@ function MQTTClient:connect(uri, options)
   end
   local callback_id = callback and _PY.registerCallback(callback, true) or nil  -- true = persistent for multiple events
   self.callback_id = callback_id  -- Store for cleanup
-  self.client_id = _PY.mqtt_client_connect(uri, self.options, callback_id)
-end
-
-function MQTTClient:disconnect(options)
-  if not self.client_id then
-    return
-  end
+  self.client_id = _PY.mqtt_client_connect(uri, options, callback_id)
   
-  options = options or {}
-  
-  local callback = nil
-  if options.callback then
-    callback = function(error_code)
-      options.callback(error_code)
+  -- Disconnect method
+  function self:disconnect(options)
+    if not self.client_id then
+      return
+    end
+    
+    options = options or {}
+    
+    local callback = nil
+    if options.callback then
+      callback = function(error_code)
+        options.callback(error_code)
+      end
+    end
+    
+    local callback_id = callback and _PY.registerCallback(callback) or nil
+    _PY.mqtt_client_disconnect(self.client_id, callback_id)
+    
+    -- Clean up persistent callback if we have it
+    if self.callback_id then
+      _PY.clearRegisteredCallback(self.callback_id)
+      self.callback_id = nil
     end
   end
-  
-  local callback_id = callback and _PY.registerCallback(callback) or nil
-  _PY.mqtt_client_disconnect(self.client_id, callback_id)  -- Fix: removed options parameter
-  
-  -- Clean up persistent callback if we have it
-  if self.callback_id then
-    _PY.clearRegisteredCallback(self.callback_id)
-    self.callback_id = nil
-  end
-end
 
-function MQTTClient:subscribe(topics, options)
-  if not self.client_id then
-    return nil
-  end
-  
-  options = options or {}
-  
-  local callback = nil
-  if options.callback then
-    callback = function(error_code)
-      options.callback(error_code)
+  -- Subscribe method
+  function self:subscribe(topics, options)
+    if not self.client_id then
+      return nil
     end
-  end
-  
-  local callback_id = callback and _PY.registerCallback(callback) or nil
-  return _PY.mqtt_client_subscribe(self.client_id, topics, options, callback_id)
-end
-
-function MQTTClient:unsubscribe(topics, options)
-  if not self.client_id then
-    return nil
-  end
-  
-  options = options or {}
-  
-  local callback = nil
-  if options.callback then
-    callback = function(error_code)
-      options.callback(error_code)
+    
+    options = options or {}
+    
+    local callback = nil
+    if options.callback then
+      callback = function(error_code)
+        options.callback(error_code)
+      end
     end
+    
+    local callback_id = callback and _PY.registerCallback(callback) or nil
+    return _PY.mqtt_client_subscribe(self.client_id, topics, options, callback_id)
   end
-  
-  local callback_id = callback and _PY.registerCallback(callback) or nil
-  return _PY.mqtt_client_unsubscribe(self.client_id, topics, options, callback_id)
-end
 
-function MQTTClient:publish(topic, payload, options)
-  if not self.client_id then
-    return nil
-  end
-  
-  options = options or {}
-  
-  local callback = nil
-  if options.callback then
-    callback = function(error_code)
-      options.callback(error_code)
+  -- Unsubscribe method
+  function self:unsubscribe(topics, options)
+    if not self.client_id then
+      return nil
     end
-  end
-  
-  local callback_id = callback and _PY.registerCallback(callback) or nil
-  return _PY.mqtt_client_publish(self.client_id, topic, payload, options, callback_id)
-end
-
-function MQTTClient:addEventListener(event_name, callback)
-  if not self.client_id or not callback then
-    return
-  end
-  
-  -- Store the callback locally
-  self.event_listeners[event_name] = callback
-  
-  -- Create wrapper callback for Python
-  local wrapper_callback = function(event_data)
-    if self.event_listeners[event_name] then
-      self.event_listeners[event_name](event_data)
+    
+    options = options or {}
+    
+    local callback = nil
+    if options.callback then
+      callback = function(error_code)
+        options.callback(error_code)
+      end
     end
+    
+    local callback_id = callback and _PY.registerCallback(callback) or nil
+    return _PY.mqtt_client_unsubscribe(self.client_id, topics, options, callback_id)
+  end
+
+  -- Publish method
+  function self:publish(topic, payload, options)
+    if not self.client_id then
+      return nil
+    end
+    
+    options = options or {}
+    
+    local callback = nil
+    if options.callback then
+      callback = function(error_code)
+        options.callback(error_code)
+      end
+    end
+    
+    local callback_id = callback and _PY.registerCallback(callback) or nil
+    return _PY.mqtt_client_publish(self.client_id, topic, payload, options, callback_id)
+  end
+
+  -- Add event listener (EventTarget API)
+  function self:addEventListener(event_name, callback)
+    if not self.client_id or not callback then
+      return
+    end
+    
+    -- Store the callback locally
+    self.event_listeners[event_name] = callback
+    
+    -- Create wrapper callback for Python
+    local wrapper_callback = function(event_data)
+      if self.event_listeners[event_name] then
+        self.event_listeners[event_name](event_data)
+      end
+    end
+    
+    local callback_id = _PY.registerCallback(wrapper_callback, true)  -- true = persistent for multiple events
+    self.event_callback_ids[event_name] = callback_id  -- Store for cleanup
+    _PY.mqtt_client_add_event_listener(self.client_id, event_name, callback_id)
+  end
+
+  -- Remove event listener
+  function self:removeEventListener(event_name)
+    if not self.client_id then
+      return
+    end
+    
+    -- Remove local callback
+    self.event_listeners[event_name] = nil
+    
+    -- Clean up persistent callback
+    if self.event_callback_ids and self.event_callback_ids[event_name] then
+      _PY.clearRegisteredCallback(self.event_callback_ids[event_name])
+      self.event_callback_ids[event_name] = nil
+    end
+    
+    -- Remove from Python side
+    _PY.mqtt_client_remove_event_listener(self.client_id, event_name)
+  end
+
+  -- Check if connected
+  function self:isConnected()
+    if not self.client_id then
+      return false
+    end
+    
+    return _PY.mqtt_client_is_connected(self.client_id)
+  end
+
+  -- Get client info
+  function self:getInfo()
+    if not self.client_id then
+      return nil
+    end
+    
+    return _PY.mqtt_client_get_info(self.client_id)
   end
   
-  local callback_id = _PY.registerCallback(wrapper_callback, true)  -- true = persistent for multiple events
-  if not self.event_callback_ids then
-    self.event_callback_ids = {}
-  end
-  self.event_callback_ids[event_name] = callback_id  -- Store for cleanup
-  _PY.mqtt_client_add_event_listener(self.client_id, event_name, callback_id)
+  return self
 end
 
-function MQTTClient:removeEventListener(event_name)
-  if not self.client_id then
-    return
+-- Legacy support: Keep the old MQTTClient for backward compatibility
+function net.MQTTClient()
+  local self = setmetatable({}, {})
+  
+  function self:connect(uri, options)
+    -- Delegate to the new implementation
+    local client = net.Client.connect(uri, options)
+    -- Copy methods to self for backward compatibility
+    for k, v in pairs(client) do
+      if type(v) == "function" then
+        self[k] = v
+      else
+        self[k] = v
+      end
+    end
+    return self
   end
   
-  -- Remove local callback
-  self.event_listeners[event_name] = nil
-  
-  -- Clean up persistent callback
-  if self.event_callback_ids and self.event_callback_ids[event_name] then
-    _PY.clearRegisteredCallback(self.event_callback_ids[event_name])
-    self.event_callback_ids[event_name] = nil
-  end
-  
-  -- Remove from Python side
-  _PY.mqtt_client_remove_event_listener(self.client_id, event_name)
-end
-
-function MQTTClient:isConnected()
-  if not self.client_id then
-    return false
-  end
-  
-  return _PY.mqtt_client_is_connected(self.client_id)
-end
-
-function MQTTClient:getInfo()
-  if not self.client_id then
-    return nil
-  end
-  
-  return _PY.mqtt_client_get_info(self.client_id)
+  return self
 end
 
 -- Return the net module for require()
+-- Also create mqtt alias for Fibaro compatibility
+mqtt = {
+  Client = net.Client,
+  QoS = net.QoS,
+  MQTTConnectReturnCode = net.MQTTConnectReturnCode
+}
+
 return net

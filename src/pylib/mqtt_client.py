@@ -7,7 +7,7 @@ import asyncio
 import uuid
 import ssl
 from typing import Dict, Any, Optional
-from .lua_bindings import export_to_lua, get_global_engine, python_to_lua_table, lua_to_python_table
+from eplua.lua_bindings import export_to_lua, get_global_engine, python_to_lua_table, lua_to_python_table
 import logging
 
 logger = logging.getLogger(__name__)

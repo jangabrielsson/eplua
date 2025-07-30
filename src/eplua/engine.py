@@ -11,6 +11,7 @@ import uuid
 import time
 import queue
 import threading
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 import lupa
@@ -38,6 +39,12 @@ class LuaEngine:
         Args:
             loop: Event loop to use. If None, will try to get the current loop.
         """
+        # Add pylib directory to Python path for FFI library loading
+        pylib_path = Path(__file__).parent.parent / "pylib"
+        if pylib_path.exists() and str(pylib_path) not in sys.path:
+            sys.path.insert(0, str(pylib_path.parent))
+            logger.debug(f"Added pylib parent directory to Python path: {pylib_path.parent}")
+        
         if loop:
             self._loop = loop
         else:

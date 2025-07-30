@@ -8,7 +8,7 @@ Supports async TCP client connections, TCP servers, and connection management.
 import logging
 import asyncio
 from typing import Dict, Tuple, Optional
-from .lua_bindings import export_to_lua, get_global_engine, python_to_lua_table
+from eplua.lua_bindings import export_to_lua, get_global_engine, python_to_lua_table
 
 logger = logging.getLogger(__name__)
 

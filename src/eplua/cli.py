@@ -365,11 +365,20 @@ def detect_gui_usage(script_path: str, fragments: list) -> bool:
         'set_window_html', 'list_windows'
     ]
     
+    gui_patterns = [
+        # Direct _PY function calls
+        *[f'_PY.{func}' for func in gui_functions],
+        # Windows module usage
+        "require('windows')", 'require("windows")',
+        'windows.createWindow', 'windows.create', 'windows.new',
+        'windows.demo()', 'windows.showWindow'
+    ]
+    
     # Check fragments
     if fragments:
         for fragment in fragments:
-            for func in gui_functions:
-                if f'_PY.{func}' in fragment:
+            for pattern in gui_patterns:
+                if pattern in fragment:
                     return True
     
     # Check script file
@@ -377,8 +386,8 @@ def detect_gui_usage(script_path: str, fragments: list) -> bool:
         try:
             with open(script_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                for func in gui_functions:
-                    if f'_PY.{func}' in content:
+                for pattern in gui_patterns:
+                    if pattern in content:
                         return True
         except:
             pass

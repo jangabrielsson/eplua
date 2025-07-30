@@ -8,9 +8,10 @@ For other network protocols, see separate modules: tcp.py, udp.py, websocket.py,
 import logging
 import asyncio
 import json
+import requests  # For synchronous requests
 from typing import Any, Dict, Optional
 import aiohttp
-from .lua_bindings import export_to_lua, get_global_engine, python_to_lua_table, lua_to_python_table
+from eplua.lua_bindings import export_to_lua, get_global_engine, python_to_lua_table, lua_to_python_table
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +129,65 @@ async def _perform_http_request(url: str, options: Dict[str, Any], callback_id: 
             engine._lua.globals()["_PY"]["timerExpired"](callback_id, str(e), None)
         except Exception as e:
             logger.error(f"Error calling HTTP error callback {callback_id}: {e}")
+
+
+@export_to_lua("http_request_sync")
+def http_request_sync(options: Any) -> Any:
+    """
+    Make a synchronous HTTP request.
+    
+    Args:
+        options: Lua table with request options (url, method, headers, data, etc.)
+        
+    Returns:
+        Response table with status, body, headers, etc.
+    """
+    try:
+        # Convert Lua table to Python dict
+        py_options = lua_to_python_table(options) if hasattr(options, 'items') else {}
+        
+        url = py_options.get('url')
+        if not url:
+            return python_to_lua_table({'error': 'URL is required'})
+            
+        method = py_options.get('method', 'GET').upper()
+        headers = py_options.get('headers', {})
+        data = py_options.get('data')
+        timeout = py_options.get('timeout', 30)
+        
+        # Make the synchronous request
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            data=data,
+            timeout=timeout
+        )
+        
+        # Try to parse JSON response
+        response_json = None
+        try:
+            response_json = response.json()
+        except:
+            pass
+        
+        # Create result
+        result = {
+            'status': response.status_code,
+            'status_text': response.reason or '',
+            'headers': dict(response.headers),
+            'text': response.text,
+            'json': response_json,
+            'url': response.url,
+            'ok': 200 <= response.status_code < 300
+        }
+        
+        logger.debug(f"Sync HTTP request completed: {response.status_code} for {url}")
+        return python_to_lua_table(result)
+        
+    except requests.RequestException as e:
+        logger.error(f"Sync HTTP request error: {e}")
+        return python_to_lua_table({'error': str(e)})
+    except Exception as e:
+        logger.error(f"Sync HTTP request unexpected error: {e}")
+        return python_to_lua_table({'error': str(e)})
