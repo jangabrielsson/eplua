@@ -154,24 +154,27 @@ class GUIManager:
         args = cmd_data['args']
         
         try:
+            # Legacy command aliases for backward compatibility
             if command == 'create_window':
-                return self._create_window(**args)
+                return self._create_native_window(**args)
             elif command == 'set_window_html':
                 return self._set_window_html(**args)
             elif command == 'show_window':
-                return self._show_window(**args)
+                return self._show_native_window(**args)
             elif command == 'hide_window':
-                return self._hide_window(**args)
+                return self._hide_native_window(**args)
             elif command == 'close_window':
-                return self._close_window(**args)
+                return self._close_native_window(**args)
             elif command == 'list_windows':
-                return self._list_windows()
+                return self._list_native_windows()
+            # Core GUI functions
             elif command == 'gui_available':
                 return True
             elif command == 'html_rendering_available':
                 return self._html_rendering_available()
             elif command == 'get_html_engine':
                 return self._get_html_engine()
+            # Native window commands
             elif command == 'create_native_window':
                 return self._create_native_window(**args)
             elif command == 'set_native_ui':
@@ -195,273 +198,33 @@ class GUIManager:
         except Exception as e:
             return f"ERROR: {e}"
     
-    def _create_window(self, title: str, width: int = 800, height: int = 600) -> str:
-        """Create a new window"""
-        try:
-            from eplua.gui import UIWindow
-            
-            window_id = str(uuid.uuid4())
-            window = UIWindow(window_id, title, width, height)
-            window.create()  # Use normal window creation
-            
-            self.windows[window_id] = window
-            return window_id
-        except Exception as e:
-            return f"ERROR: Failed to create window: {e}"
-    
-    def _set_window_html(self, window_id: str, html_content: str) -> str:
-        """Set UI content for a window (supports HTML via CEF or UI descriptions via native)"""
-        try:
-            if window_id not in self.windows:
-                return f"ERROR: Window {window_id} not found"
-            
-            window = self.windows[window_id]
-            
-            # Check if it's JSON (UI description) for native UI
-            if html_content.strip().startswith('{'):
-                # Try to parse as JSON UI description
-                try:
-                    ui_description = json.loads(html_content)
-                    window.set_ui(ui_description)
-                    return "SUCCESS: UI description set"
-                except json.JSONDecodeError:
-                    pass
-            
-            # Check if CEF is available for HTML rendering
+    def _set_window_html(self, window_id: str, content: str) -> str:
+        """For backward compatibility - now just redirects to native UI for JSON"""
+        # Only handle JSON content, ignore HTML
+        if content.strip().startswith('{'):
+            # Parse and set native UI directly without recursion
             try:
-                from . import cef_gui
-                if cef_gui.is_cef_available():
-                    # Use CEF for true HTML rendering
-                    cef_window = cef_gui.create_cef_window(window.title, window.width, window.height)
-                    cef_window.set_html(html_content)
-                    
-                    # Replace the native window with CEF window
-                    self.windows[window_id] = cef_window
-                    return "SUCCESS: HTML content set via CEF"
-            except ImportError:
-                pass
-            
-            # Fallback: Convert HTML to native UI description
-            ui_description = self._convert_html_to_native_ui(html_content)
-            window.set_ui(ui_description)
-            return "SUCCESS: HTML converted to native UI"
-        except Exception as e:
-            return f"ERROR: Failed to set content: {e}"
-            window.set_ui(ui_description)
-            return "SUCCESS: HTML converted to native UI"
-        except Exception as e:
-            return f"ERROR: Failed to set content: {e}"
-    
-    def _convert_html_to_native_ui(self, html_content: str) -> dict:
-        """Convert HTML content to native UI description"""
-        elements = []
-        
-        # Extract title/h1 elements
-        title_matches = re.findall(r'<h1[^>]*>(.*?)</h1>', html_content, re.IGNORECASE | re.DOTALL)
-        for title in title_matches:
-            # Clean up HTML tags from title
-            clean_title = re.sub(r'<[^>]+>', '', title).strip()
-            if clean_title:
-                elements.append({
-                    "type": "header",
-                    "text": clean_title,
-                    "level": 1,
-                    "id": f"header_{len(elements)}"
-                })
-        
-        # Extract h2, h3 elements
-        for level in [2, 3]:
-            h_matches = re.findall(f'<h{level}[^>]*>(.*?)</h{level}>', html_content, re.IGNORECASE | re.DOTALL)
-            for h_text in h_matches:
-                clean_text = re.sub(r'<[^>]+>', '', h_text).strip()
-                if clean_text:
-                    elements.append({
-                        "type": "header", 
-                        "text": clean_text,
-                        "level": level,
-                        "id": f"header_{len(elements)}"
-                    })
-        
-        # Extract paragraph text
-        p_matches = re.findall(r'<p[^>]*>(.*?)</p>', html_content, re.IGNORECASE | re.DOTALL)
-        for p_text in p_matches:
-            # Clean up HTML tags and extract text
-            clean_text = re.sub(r'<[^>]+>', '', p_text).strip()
-            if clean_text and len(clean_text) > 5:  # Only include substantial text
-                elements.append({
-                    "type": "label",
-                    "text": clean_text,
-                    "id": f"label_{len(elements)}"
-                })
-        
-        # Extract buttons
-        button_matches = re.findall(r'<button[^>]*onclick=["\']([^"\']*)["\'][^>]*>(.*?)</button>', html_content, re.IGNORECASE | re.DOTALL)
-        for onclick, button_text in button_matches:
-            clean_text = re.sub(r'<[^>]+>', '', button_text).strip()
-            if clean_text:
-                elements.append({
-                    "type": "button",
-                    "text": clean_text,
-                    "action": onclick,
-                    "id": f"button_{len(elements)}"
-                })
-        
-        # Extract divs with class="badge" 
-        badge_matches = re.findall(r'<span[^>]*class=["\'][^"\']*badge[^"\']*["\'][^>]*>(.*?)</span>', html_content, re.IGNORECASE | re.DOTALL)
-        if badge_matches:
-            badge_text = " | ".join([re.sub(r'<[^>]+>', '', badge).strip() for badge in badge_matches])
-            elements.append({
-                "type": "label",
-                "text": f"Technologies: {badge_text}",
-                "id": f"badges_{len(elements)}"
-            })
-        
-        # Add a separator if we have content
-        if elements:
-            elements.append({
-                "type": "separator",
-                "id": f"separator_{len(elements)}"
-            })
-        
-        # Add some interactive elements to make it more useful
-        elements.extend([
-            {
-                "type": "label",
-                "text": "Native UI Controls:",
-                "id": "native_controls_label"
-            },
-            {
-                "type": "button",
-                "text": "Refresh Window",
-                "action": "refresh",
-                "style": {"primary": True},
-                "id": "refresh_button"
-            },
-            {
-                "type": "button", 
-                "text": "Test Native UI",
-                "action": "test",
-                "id": "test_button"
-            },
-            {
-                "type": "slider",
-                "text": "Sample Slider",
-                "min": 0,
-                "max": 100,
-                "value": 50,
-                "id": "sample_slider"
-            }
-        ])
-        
-        # If no meaningful content was extracted, provide a default UI
-        if len(elements) <= 4:  # Only the default elements we added
-            elements = [
-                {
-                    "type": "header",
-                    "text": "Native UI Window",
-                    "level": 1,
-                    "id": "default_header"
-                },
-                {
-                    "type": "label",
-                    "text": "HTML content was converted to native UI elements.",
-                    "id": "conversion_notice"
-                },
-                {
-                    "type": "separator",
-                    "id": "separator_1"
-                },
-                {
-                    "type": "button",
-                    "text": "Demo Button",
-                    "action": "demo_click",
-                    "style": {"primary": True},
-                    "id": "demo_button"
-                },
-                {
-                    "type": "slider",
-                    "text": "Demo Slider",
-                    "min": 0,
-                    "max": 100,
-                    "value": 25,
-                    "id": "demo_slider"
-                },
-                {
-                    "type": "switch",
-                    "text": "Demo Switch",
-                    "value": True,
-                    "id": "demo_switch"
-                }
-            ]
-        
-        return {
-            "elements": elements
-        }
-    
-    def _show_window(self, window_id: str) -> str:
-        """Show a window"""
-        try:
-            if window_id not in self.windows:
-                return f"ERROR: Window {window_id} not found"
-            
-            window = self.windows[window_id]
-            window.show()
-            return "SUCCESS: Window shown"
-        except Exception as e:
-            return f"ERROR: Failed to show window: {e}"
-    
-    def _hide_window(self, window_id: str) -> str:
-        """Hide a window"""
-        try:
-            if window_id not in self.windows:
-                return f"ERROR: Window {window_id} not found"
-            
-            window = self.windows[window_id]
-            window.hide()
-            return "SUCCESS: Window hidden"
-        except Exception as e:
-            return f"ERROR: Failed to hide window: {e}"
-    
-    def _close_window(self, window_id: str) -> str:
-        """Close and destroy a window"""
-        try:
-            if window_id not in self.windows:
-                return f"ERROR: Window {window_id} not found"
-            
-            window = self.windows[window_id]
-            window.close()
-            del self.windows[window_id]
-            return "SUCCESS: Window closed"
-        except Exception as e:
-            return f"ERROR: Failed to close window: {e}"
-    
-    def _list_windows(self) -> str:
-        """List all open windows"""
-        if not self.windows:
-            return "No windows open"
-        
-        windows_info = []
-        for window_id, window in self.windows.items():
-            status = "created" if window.created else "not created"
-            windows_info.append(f"  {window_id}: '{window.title}' ({status})")
-        
-        return f"Open windows ({len(self.windows)}):\n" + "\n".join(windows_info)
+                if window_id not in self.windows:
+                    return f"ERROR: Window {window_id} not found"
+                
+                window = self.windows[window_id]
+                ui_description = json.loads(content)
+                window.set_ui(ui_description)
+                return "SUCCESS: Native UI set via HTML compatibility"
+            except json.JSONDecodeError as e:
+                return f"ERROR: Invalid JSON: {e}"
+            except Exception as e:
+                return f"ERROR: Failed to set UI: {e}"
+        else:
+            return "ERROR: HTML content not supported in native-only mode"
     
     def _html_rendering_available(self) -> bool:
-        """Check if HTML rendering is available via CEF"""
-        try:
-            from . import cef_gui
-            return cef_gui.is_cef_available()
-        except ImportError:
-            return False
+        """Check if HTML rendering is available - always False for native-only mode"""
+        return False
     
     def _get_html_engine(self) -> str:
-        """Get HTML engine name"""
-        try:
-            from . import cef_gui
-            return "cef" if cef_gui.is_cef_available() else "none"
-        except ImportError:
-            return "none"
+        """Get HTML engine name - always 'none' for native-only mode"""
+        return "none"
 
     def _create_native_window(self, title: str, width: int = 400, height: int = 300) -> Dict[str, Any]:
         """Create a new native UI window"""
@@ -556,8 +319,23 @@ class GUIManager:
             return {"error": f"Failed to create native window: {e}"}
 
     def _set_native_ui(self, window_id: str, ui_json: str) -> str:
-        """Set UI description for a window (now same as set_window_html for JSON)"""
-        return self._set_window_html(window_id, ui_json)
+        """Set UI description for a window using JSON"""
+        try:
+            if window_id not in self.windows:
+                return f"ERROR: Window {window_id} not found"
+            
+            window = self.windows[window_id]
+            
+            # Parse JSON UI description
+            try:
+                ui_description = json.loads(ui_json)
+                window.set_ui(ui_description)
+                return "SUCCESS: Native UI set"
+            except json.JSONDecodeError as e:
+                return f"ERROR: Invalid JSON: {e}"
+                
+        except Exception as e:
+            return f"ERROR: Failed to set native UI: {e}"
 
     def _set_native_ui_structured(self, window_id: str, ui_definition: list) -> str:
         """Set structured UI description for a native window"""
@@ -662,36 +440,6 @@ def replace_gui_functions_with_bridge(engine, bridge: ThreadSafeGUIBridge):
         if not GUI_AVAILABLE:
             return "none"
         return bridge.send_gui_command('get_html_engine')
-    
-    def create_window(title: str, width: int = 800, height: int = 600) -> str:
-        if not GUI_AVAILABLE:
-            return "ERROR: GUI not available"
-        return bridge.send_gui_command('create_window', title=title, width=width, height=height)
-    
-    def set_window_html(window_id: str, html_content: str) -> str:
-        if not GUI_AVAILABLE:
-            return "ERROR: GUI not available"
-        return bridge.send_gui_command('set_window_html', window_id=window_id, html_content=html_content)
-    
-    def show_window(window_id: str) -> str:
-        if not GUI_AVAILABLE:
-            return "ERROR: GUI not available"
-        return bridge.send_gui_command('show_window', window_id=window_id)
-    
-    def hide_window(window_id: str) -> str:
-        if not GUI_AVAILABLE:
-            return "ERROR: GUI not available"
-        return bridge.send_gui_command('hide_window', window_id=window_id)
-    
-    def close_window(window_id: str) -> str:
-        if not GUI_AVAILABLE:
-            return "ERROR: GUI not available"
-        return bridge.send_gui_command('close_window', window_id=window_id)
-    
-    def list_windows() -> str:
-        if not GUI_AVAILABLE:
-            return "ERROR: GUI not available"
-        return bridge.send_gui_command('list_windows')
 
     def create_native_window(title: str, width: int = 400, height: int = 300):
         if not GUI_AVAILABLE:
@@ -699,8 +447,12 @@ def replace_gui_functions_with_bridge(engine, bridge: ThreadSafeGUIBridge):
         result = bridge.send_gui_command('create_native_window', title=title, width=width, height=height)
         # Convert result to Lua table format if it's a dict
         if isinstance(result, dict):
-            from .lua_bindings import python_to_lua_table
-            return python_to_lua_table(result)
+            try:
+                from .lua_bindings import python_to_lua_table
+                lua_result = python_to_lua_table(result)
+                return lua_result
+            except Exception as e:
+                return result
         return result
 
     def set_native_ui(window_id: str, ui_definition) -> str:
@@ -726,7 +478,8 @@ def replace_gui_functions_with_bridge(engine, bridge: ThreadSafeGUIBridge):
         else:
             return f"ERROR: Invalid UI definition type: {type(ui_definition)}"
             
-        return bridge.send_gui_command('set_native_ui', window_id=window_id, ui_json=ui_json)
+        result = bridge.send_gui_command('set_native_ui', window_id=window_id, ui_json=ui_json)
+        return result
 
     def show_native_window(window_id: str) -> str:
         if not GUI_AVAILABLE:
@@ -763,12 +516,16 @@ def replace_gui_functions_with_bridge(engine, bridge: ThreadSafeGUIBridge):
     py_table.gui_available = gui_available
     py_table.html_rendering_available = html_rendering_available
     py_table.get_html_engine = get_html_engine
-    py_table.create_window = create_window
-    py_table.set_window_html = set_window_html
-    py_table.show_window = show_window
-    py_table.hide_window = hide_window
-    py_table.close_window = close_window
-    py_table.list_windows = list_windows
+    
+    # Legacy aliases (for backward compatibility) - these use the bridge's command aliases
+    py_table.create_window = create_native_window  # Legacy alias for createNativeWindow
+    py_table.set_window_html = set_native_ui        # Legacy alias for setNativeUI (JSON only)
+    py_table.show_window = show_native_window       # Legacy alias for showNativeWindow
+    py_table.hide_window = hide_native_window       # Legacy alias for hideNativeWindow 
+    py_table.close_window = close_native_window     # Legacy alias for closeNativeWindow
+    py_table.list_windows = list_native_windows     # Legacy alias for listNativeWindows
+    
+    # Native functions (primary interface)
     py_table.createNativeWindow = create_native_window
     py_table.setNativeUI = set_native_ui
     py_table.showNativeWindow = show_native_window

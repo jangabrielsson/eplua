@@ -1,13 +1,19 @@
 #!/bin/bash
+# EPLua runner script
 
-# Minimal eplua launcher for VS Code MobDebug integration
-# Just activates virtual environment and runs eplua directly
+echo "🚀 EPLua - Native UI System"
+echo "============================"
 
-# Set the working directory to the script's directory
-cd "$(dirname "$0")"
+# Set PYTHONPATH to include src directory
+export PYTHONPATH="/Users/jangabrielsson/Documents/dev/eplua/src:$PYTHONPATH"
 
-# Activate the virtual environment
-source .venv/bin/activate
+# Activate virtual environment if available
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+    echo "ℹ️ Activated .venv virtual environment"
+else
+    echo "ℹ️ .venv not found, using system Python"
+fi
 
-# Run eplua directly with all arguments
-exec eplua "$@"
+# Run with Python module syntax
+python -m eplua.cli "$@"

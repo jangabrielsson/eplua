@@ -1,262 +1,176 @@
 #!/usr/bin/env python3
 """
-EPLua CLI - A Lua interpreter with async timer support and GUI capabilities
+EPLua CLI - Native Windows Only
 
-Usage:
-    eplua <script.lua>           # Run a Lua script
-    eplua --help                 # Show help
-    eplua --version              # Show version
-    eplua --no-gui               # Force disable GUI mode
+EPLua CLI for running Lua scripts with native tkinter UI support.
+- If tkinter available: Start 2 threads (main=tkinter, worker=lua)
+- If no tkinter: Start 1 thread (main=lua engine)
+- Focused on native UI without HTML/CEF complexity
 """
 
-import sys
-import argparse
 import asyncio
-import logging
+import sys
 import threading
-import os
-import signal
-import atexit
+import argparse
+from pathlib import Path
 from typing import Optional
-from eplua import LuaEngine
-from eplua.gui_bridge import ThreadSafeGUIBridge, GUIManager, replace_gui_functions_with_bridge, GUI_AVAILABLE
 
-__version__ = "0.1.0"
+def check_tkinter_available() -> bool:
+    """Check if tkinter is available"""
+    try:
+        import tkinter as tk
+        return True
+    except ImportError:
+        return False
 
-# Global reference to bridge for cleanup
-_global_bridge = None
-
-def cleanup_gui():
-    """Cleanup function called on exit"""
-    global _global_bridge
-    if _global_bridge and _global_bridge.running:
-        _global_bridge.stop()
-
-def signal_handler(signum, frame):
-    """Handle termination signals"""
-    cleanup_gui()
-    sys.exit(0)
-
-
-def setup_logging(verbose: bool = False):
-    """Set up logging configuration."""
-    level = logging.DEBUG if verbose else logging.WARNING
-    logging.basicConfig(
-        level=level,
-        format='%(name)s - %(levelname)s - %(message)s'
-    )
-
-
-def run_eplua_engine(script_path: str, fragments: list, bridge: Optional[ThreadSafeGUIBridge] = None):
-    """Run EPLua engine in worker thread (or main thread if no GUI)"""
-    async def engine_main():
-        try:
-            async with LuaEngine() as engine:
-                # Replace GUI functions with bridge versions if using GUI
-                if bridge:
-                    replace_gui_functions_with_bridge(engine, bridge)
+def run_engine_thread(script_path: Optional[str] = None, fragments: list = None, bridge=None):
+    """Run Lua engine in a worker thread"""
+    try:
+        from eplua.engine import LuaEngine
+        from eplua.gui_bridge import replace_gui_functions_with_bridge
+        
+        # Create the engine
+        engine = LuaEngine()
+        
+        # Setup GUI bridge integration with shared bridge
+        if bridge:
+            replace_gui_functions_with_bridge(engine, bridge)
+        
+        # Run the engine
+        async def engine_main():
+            try:
+                for fragment in fragments:
+                    await engine.run_script(f'_PY.luaFragment({repr(fragment)})', "fragment")
                 
-                # Execute fragments first (if any)
-                if fragments:
-                    for fragment in fragments:
-                        await engine.run_script(f'_PY.luaFragment({repr(fragment)})', "fragment")
-                
-                # Execute script file (if provided)
                 if script_path:
                     await engine.run_script(f'_PY.mainLuaFile("{script_path}")', script_path)
                 
-                # Keep running while there are active operations
+                # Keep running while operations are active
                 while engine.has_active_operations() and engine.is_running():
                     await asyncio.sleep(0.1)
                 
-        except Exception as e:
-            print(f"❌ EPLua engine error: {e}")
-            import traceback
-            traceback.print_exc()
-        finally:
-            # Signal GUI to close
-            if bridge and bridge.running:
-                bridge.stop()
-    
-    # Run the async engine
-    asyncio.run(engine_main())
-
-
-def detect_gui_usage(script_path: str, fragments: list) -> bool:
-    """Detect if the script or fragments use GUI functions"""
-    gui_functions = [
-        'create_window', 'show_window', 'hide_window', 'close_window',
-        'set_window_html', 'list_windows'
-    ]
-    
-    native_ui_functions = [
-        'createNativeWindow', 'setNativeUI', 'showNativeWindow', 
-        'hideNativeWindow', 'closeNativeWindow', 'listNativeWindows'
-    ]
-    
-    gui_patterns = [
-        # Direct _PY function calls
-        *[f'_PY.{func}' for func in gui_functions],
-        *[f'_PY.{func}' for func in native_ui_functions],
-        # Windows module usage
-        "require('windows')", 'require("windows")',
-        'windows.createWindow', 'windows.create', 'windows.new',
-        'windows.demo()', 'windows.showWindow',
-        # Native UI module usage
-        "require('native_ui')", 'require("native_ui")',
-        'nativeUI.createWindow', 'nativeUI.create', 'native_ui.createWindow',
-        'createNativeWindow', 'setNativeUI'
-    ]
-    
-    # Check fragments
-    if fragments:
-        for fragment in fragments:
-            for pattern in gui_patterns:
-                if pattern in fragment:
-                    return True
-    
-    # Check script file
-    if script_path and os.path.exists(script_path):
-        try:
-            with open(script_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                for pattern in gui_patterns:
-                    if pattern in content:
-                        return True
-        except:
-            pass
-    
-    return False
-
-
-def main():
-    """Main CLI entry point."""
-    parser = argparse.ArgumentParser(
-        prog="eplua",
-        description="EPLua - Lua interpreter with async timer support and GUI capabilities",
-        epilog="Examples:\n"
-               "  eplua script.lua        # Run a Lua script (auto-detects GUI usage)\n"
-               "  eplua -v script.lua     # Run with verbose output\n"
-               "  eplua -e 'print(\"Hello\")' # Execute Lua fragment\n"
-               "  eplua --no-gui script.lua # Force disable GUI mode\n",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    
-    parser.add_argument(
-        "script",
-        type=str,
-        nargs='?',  # Make script optional when using -e
-        help="Lua script file to execute"
-    )
-    
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose output"
-    )
-
-    parser.add_argument(
-        "-e",
-        type=str,
-        dest="fragments",
-        action="append",  # Allow multiple -e flags
-        help="Execute lua fragment"
-    )
-
-    parser.add_argument(
-        "-l",
-        type=str,
-        help="Ignored (compatibility with standard lua)"
-    )
-    
-    parser.add_argument(
-        "--no-gui",
-        action="store_true",
-        help="Force disable GUI mode (run engine in main thread)"
-    )
-    
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"EPLua {__version__}"
-    )
-    
-    # Parse arguments
-    args = parser.parse_args()
-    
-    # Check if we have either a script file or fragments
-    if not args.script and not args.fragments:
-        parser.print_help()
-        return 1
-    
-    # Set up logging
-    setup_logging(args.verbose)
-    
-    # Prepare fragments list
-    fragments = args.fragments or []
-    
-    # Detect if GUI is needed and available
-    needs_gui = not args.no_gui and detect_gui_usage(args.script, fragments)
-    use_gui_mode = needs_gui and GUI_AVAILABLE
-    
-    if args.verbose:
-        print(f"GUI Available: {GUI_AVAILABLE}")
-        print(f"GUI Needed: {needs_gui}")
-        print(f"Using GUI Mode: {use_gui_mode}")
-    
-    try:
-        if use_gui_mode:
-            # Run with GUI-first architecture
-            if args.verbose:
-                print("🔧 Architecture: GUI in main thread, EPLua in worker thread")
-            
-            # Create bridge
-            gui_bridge = ThreadSafeGUIBridge()
-            gui_bridge.start()
-            
-            # Set global reference for cleanup
-            global _global_bridge
-            _global_bridge = gui_bridge
-            
-            # Set up signal handlers and exit handlers
-            signal.signal(signal.SIGINT, signal_handler)
-            signal.signal(signal.SIGTERM, signal_handler)
-            atexit.register(cleanup_gui)
-            
-            # Start EPLua engine in worker thread
-            engine_thread = threading.Thread(
-                target=run_eplua_engine,
-                args=(args.script, fragments, gui_bridge),
-                daemon=True
-            )
-            engine_thread.start()
-            
-            # Run GUI in main thread
-            gui_manager = GUIManager(gui_bridge)
-            gui_manager.start_gui_loop()
-            
-            # Wait for engine thread to complete
-            engine_thread.join(timeout=1.0)
-            
-        else:
-            # Run without GUI in main thread (traditional mode)
-            if args.verbose:
-                print("🔧 Architecture: EPLua in main thread (no GUI)")
-            
-            run_eplua_engine(args.script, fragments, None)
+            except Exception as e:
+                print(f"❌ Engine error: {e}")
+                import traceback
+                traceback.print_exc()
         
-        return 0
+        # Run the async engine
+        asyncio.run(engine_main())
         
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        if args.verbose:
-            import traceback
-            traceback.print_exc()
-        return 1
-    except KeyboardInterrupt:
-        print("\nInterrupted by user", file=sys.stderr)
-        return 130
+        print(f"❌ Engine thread error: {e}")
+        import traceback
+        traceback.print_exc()
 
+def run_gui_thread(bridge=None):
+    """Run GUI in main thread"""
+    try:
+        from eplua.gui_bridge import GUIManager
+        
+        # Create GUI manager with shared bridge
+        if bridge:
+            gui_manager = GUIManager(bridge)
+        else:
+            # Fallback - create our own bridge
+            from eplua.gui_bridge import ThreadSafeGUIBridge
+            bridge = ThreadSafeGUIBridge()
+            bridge.start()
+            gui_manager = GUIManager(bridge)
+        
+        # Start GUI loop (this will block until GUI closes)
+        gui_manager.start_gui_loop()
+        
+    except Exception as e:
+        print(f"❌ GUI error: {e}")
+        import traceback
+        traceback.print_exc()
+
+def run_eplua_simple(script_path: Optional[str] = None, fragments: list = None):
+    """
+    Simplified EPLua runner
+    
+    Two modes:
+    1. With tkinter: Main thread = GUI, Worker thread = Lua engine
+    2. Without tkinter: Main thread = Lua engine only
+    """
+    fragments = fragments or []
+    
+    if check_tkinter_available():
+        print("🖥️ Native UI available - starting with GUI support")
+        
+        # Create shared bridge instance
+        from eplua.gui_bridge import ThreadSafeGUIBridge, GUIManager
+        shared_bridge = ThreadSafeGUIBridge()
+        shared_bridge.start()
+        
+        # Start Lua engine in worker thread with shared bridge
+        engine_thread = threading.Thread(
+            target=run_engine_thread, 
+            args=(script_path, fragments, shared_bridge),
+            daemon=True
+        )
+        engine_thread.start()
+        
+        # Run GUI in main thread with shared bridge (blocks until GUI closes)
+        run_gui_thread(shared_bridge)
+        
+    else:
+        print("📟 Native UI not available - running engine only")
+        
+        # Setup basic stub GUI functions (do nothing but don't crash)
+        def setup_stub_functions():
+            """Setup stub GUI functions when tkinter is not available"""
+            from eplua.lua_bindings import export_to_lua
+            
+            @export_to_lua("gui_available")
+            def gui_available() -> bool:
+                return False
+            
+            @export_to_lua("isNativeUIAvailable")
+            def is_native_ui_available() -> bool:
+                return False
+                
+            @export_to_lua("createNativeWindow")
+            def create_native_window(title: str, width: int = 400, height: int = 300) -> str:
+                return "ERROR: GUI not available"
+        
+        setup_stub_functions()
+        
+        # Run engine in main thread
+        run_engine_thread(script_path, fragments)
+
+def main():
+    """Main CLI entry point"""
+    parser = argparse.ArgumentParser(description="EPLua - Lua with Native UI and Async Timers")
+    parser.add_argument("script", nargs="?", help="Lua script file to execute")
+    parser.add_argument("-e", "--execute", action="append", dest="fragments", 
+                      help="Execute Lua code fragment")
+    parser.add_argument("-l", type=str, help="Ignored (compatibility with standard lua)")
+    parser.add_argument("--no-gui", action="store_true", 
+                      help="Force disable GUI mode (run engine in main thread)")
+    
+    args = parser.parse_args()
+    
+    # The -l flag is for compatibility with lua debugger (loads a package)
+    # The script file comes as a positional argument, not in -l
+    
+    # Validate script file if provided
+    script_path = None
+    if args.script:
+        script_file = Path(args.script)
+        if not script_file.exists():
+            print(f"❌ Script file not found: {args.script}")
+            sys.exit(1)
+        script_path = str(script_file.resolve())
+    
+    # Run EPLua
+    try:
+        run_eplua_simple(script_path, args.fragments or [])
+    except KeyboardInterrupt:
+        print("\n👋 EPLua terminated by user")
+    except Exception as e:
+        print(f"❌ EPLua error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
