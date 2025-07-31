@@ -32,7 +32,8 @@ function windows.getCapabilities()
     return {
         gui = _PY.gui_available(),
         html = _PY.html_rendering_available(),
-        engine = _PY.get_html_engine()
+        engine = _PY.get_html_engine(),
+        native_ui = true
     }
 end
 
@@ -49,6 +50,122 @@ function Window:new(id)
     return obj
 end
 
+-- Native Window class for native UI windows
+local NativeWindow = {}
+NativeWindow.__index = NativeWindow
+
+function NativeWindow:new(id)
+    local obj = {
+        id = id,
+        _closed = false
+    }
+    setmetatable(obj, NativeWindow)
+    return obj
+end
+
+function NativeWindow:setUI(uiDescription)
+    if self._closed then
+        error("Cannot operate on closed window")
+    end
+    
+    -- Convert to table if it's a JSON string
+    local uiTable
+    if type(uiDescription) == "string" then
+        local json = require('json')
+        uiTable = json.decode(uiDescription)
+    else
+        uiTable = uiDescription
+    end
+    
+    local result = _PY.setNativeUI(self.id, uiTable)
+    if not result then
+        error("Failed to set UI")
+    end
+    return self
+end
+
+function NativeWindow:show()
+    if self._closed then
+        error("Cannot operate on closed window")
+    end
+    local result = _PY.showNativeWindow(self.id)
+    if not result then
+        error("Failed to show window")
+    end
+    return self
+end
+
+function NativeWindow:hide()
+    if self._closed then
+        error("Cannot operate on closed window")
+    end
+    local result = _PY.hideNativeWindow(self.id)
+    if not result then
+        error("Failed to hide window")
+    end
+    return self
+end
+
+function NativeWindow:close()
+    if self._closed then
+        return self
+    end
+    local result = _PY.closeNativeWindow(self.id)
+    if not result then
+        error("Failed to close window")
+    end
+    self._closed = true
+    return self
+end
+
+function NativeWindow:setCallback(elementId, callback)
+    if self._closed then
+        error("Cannot operate on closed window")
+    end
+    local result = _PY.setNativeCallback(self.id, elementId, callback)
+    if not result then
+        error("Failed to set callback")
+    end
+    return self
+end
+
+function NativeWindow:getValue(elementId)
+    if self._closed then
+        error("Cannot operate on closed window")
+    end
+    return _PY.getNativeValue(self.id, elementId)
+end
+
+function NativeWindow:setValue(elementId, value)
+    if self._closed then
+        error("Cannot operate on closed window")
+    end
+    local result = _PY.setNativeValue(self.id, elementId, value)
+    if not result then
+        error("Failed to set value")
+    end
+    return self
+end
+
+function NativeWindow:setText(elementId, text)
+    if self._closed then
+        error("Cannot operate on closed window")
+    end
+    local result = _PY.setNativeValue(self.id, elementId, text)
+    if not result then
+        error("Failed to set text")
+    end
+    return self
+end
+
+function NativeWindow:getId()
+    return self.id
+end
+
+function NativeWindow:isClosed()
+    return self._closed
+end
+
 function Window:setHtml(html)
     if self._closed then
         error("Cannot operate on closed window")
@@ -60,13 +177,23 @@ function Window:setHtml(html)
     return self
 end
 
-function Window:setUrl(url)
+function Window:setUI(uiDescription)
     if self._closed then
         error("Cannot operate on closed window")
     end
-    local result = _PY.set_window_url(self.id, url)
-    if result:match("^ERROR:") then
-        error(result)
+    
+    -- Convert to table if it's a JSON string
+    local uiTable
+    if type(uiDescription) == "string" then
+        local json = require('json')
+        uiTable = json.decode(uiDescription)
+    else
+        uiTable = uiDescription
+    end
+    
+    local result = _PY.setNativeUI(self.id, uiTable)
+    if not result then
+        error("Failed to set UI")
     end
     return self
 end
@@ -113,6 +240,55 @@ function Window:getId()
     return self.id
 end
 
+-- Element interaction methods
+function Window:setCallback(elementId, callback)
+    -- Store callback for this window and element
+    if not self.callbacks then
+        self.callbacks = {}
+    end
+    self.callbacks[elementId] = callback
+    
+    -- TODO: Register with bridge when callbacks are implemented
+    print("Callback registered for element:", elementId)
+    return self
+end
+
+function Window:getValue(elementId)
+    local result = _PY.getElementValue(self.id, elementId)
+    if result and not result:match("^ERROR:") then
+        local json = require('json')
+        local data = json.decode(result)
+        if data.success then
+            return data.value
+        end
+    end
+    return nil
+end
+
+function Window:setValue(elementId, value)
+    local result = _PY.updateElement(self.id, elementId, "value", value)
+    if result and result:match("^ERROR:") then
+        error("Failed to set value: " .. result)
+    end
+    return self
+end
+
+function Window:setText(elementId, text)
+    local result = _PY.updateElement(self.id, elementId, "text", text)
+    if result and result:match("^ERROR:") then
+        error("Failed to set text: " .. result)
+    end
+    return self
+end
+
+function Window:updateElement(elementId, property, value)
+    local result = _PY.updateElement(self.id, elementId, property, value)
+    if result and result:match("^ERROR:") then
+        error("Failed to update element: " .. result)
+    end
+    return self
+end
+
 -- Method chaining for fluent interface
 function Window:html(content)
     return self:setHtml(content)
@@ -142,6 +318,24 @@ function windows.createWindow(title, width, height)
     
     -- Return a Window object
     return Window:new(result)
+end
+
+-- Native UI window creation function
+function windows.createNativeWindow(title, width, height)
+    ensureGuiAvailable()
+    
+    -- Set defaults
+    title = title or "EPLua Native Window"
+    width = width or 800
+    height = height or 600
+    
+    local result = _PY.createNativeWindow(title, width, height)
+    if type(result) ~= "table" or not result.window_id then
+        error("Failed to create native window")
+    end
+    
+    -- Return a NativeWindow object with the native window ID
+    return NativeWindow:new(result.window_id)
 end
 
 -- Convenience function aliases

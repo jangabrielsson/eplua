@@ -15,27 +15,11 @@ import asyncio
 import logging
 import threading
 import os
-import signal
-import atexit
 from typing import Optional
 from eplua import LuaEngine
 from eplua.gui_bridge import ThreadSafeGUIBridge, GUIManager, replace_gui_functions_with_bridge, GUI_AVAILABLE
 
 __version__ = "0.1.0"
-
-# Global reference to bridge for cleanup
-_global_bridge = None
-
-def cleanup_gui():
-    """Cleanup function called on exit"""
-    global _global_bridge
-    if _global_bridge and _global_bridge.running:
-        _global_bridge.stop()
-
-def signal_handler(signum, frame):
-    """Handle termination signals"""
-    cleanup_gui()
-    sys.exit(0)
 
 
 def setup_logging(verbose: bool = False):
@@ -213,15 +197,6 @@ def main():
             # Create bridge
             gui_bridge = ThreadSafeGUIBridge()
             gui_bridge.start()
-            
-            # Set global reference for cleanup
-            global _global_bridge
-            _global_bridge = gui_bridge
-            
-            # Set up signal handlers and exit handlers
-            signal.signal(signal.SIGINT, signal_handler)
-            signal.signal(signal.SIGTERM, signal_handler)
-            atexit.register(cleanup_gui)
             
             # Start EPLua engine in worker thread
             engine_thread = threading.Thread(

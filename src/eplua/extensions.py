@@ -20,6 +20,15 @@ except ImportError as e:
     GUI_AVAILABLE = False
     logging.info(f"GUI module not available: {e}")
 
+# Import native UI module
+try:
+    from . import native_ui
+    NATIVE_UI_AVAILABLE = True
+    logging.info("Native UI module loaded successfully")
+except ImportError as e:
+    NATIVE_UI_AVAILABLE = False
+    logging.info(f"Native UI module not available: {e}")
+
 # Import remaining extension modules (FFI libraries are now in pylib/)
 # Use try/except to make imports safer
 try:
@@ -365,3 +374,208 @@ else:
     def show_gui() -> str:
         """Show GUI - backwards compatibility function."""
         return "ERROR: GUI not available"
+
+
+# Native UI Functions
+if NATIVE_UI_AVAILABLE:
+    @export_to_lua("createNativeWindow")
+    def create_native_window(title: str, width: int = 800, height: int = 600) -> Dict[str, Any]:
+        """Create a new native UI window."""
+        try:
+            logging.info(f"Creating native window: {title}")
+            window = native_ui.create_native_window(title, width, height)
+            logging.info(f"Window created with ID: {window.window_id}")
+            logging.info(f"Registry now has {len(native_ui.native_window_registry)} windows")
+            result = {"window_id": window.window_id, "title": title, "width": width, "height": height}
+            return python_to_lua_table(result)
+        except Exception as e:
+            logging.error(f"Failed to create native window: {e}")
+            raise
+    
+    @export_to_lua("setNativeUI")
+    def set_native_ui(window_id: str, ui_description) -> bool:
+        """Set UI description for a native window."""
+        try:
+            # Convert Lua table to Python dict
+            python_ui_description = lua_to_python_table(ui_description)
+            
+            if window_id in native_ui.native_window_registry:
+                window = native_ui.native_window_registry[window_id]
+                window.set_ui(python_ui_description)
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"Failed to set native UI: {e}")
+            raise
+    
+    @export_to_lua("setNativeCallback")
+    def set_native_callback(window_id: str, element_id: str, callback_func) -> bool:
+        """Set callback for a native UI element."""
+        try:
+            logging.info(f"Setting callback for window {window_id}, element {element_id}")
+            logging.info(f"Registry has {len(native_ui.native_window_registry)} windows: {list(native_ui.native_window_registry.keys())}")
+            if window_id in native_ui.native_window_registry:
+                window = native_ui.native_window_registry[window_id]
+                
+                def wrapper(data):
+                    # Convert Python data to Lua-compatible format
+                    lua_data = python_to_lua_table(data)
+                    try:
+                        callback_func(lua_data)
+                    except Exception as e:
+                        logging.error(f"Native UI callback error: {e}")
+                
+                window.set_callback(element_id, wrapper)
+                logging.info(f"Callback set successfully for {element_id}")
+                return True
+            else:
+                logging.warning(f"Window {window_id} not found in registry")
+            return False
+        except Exception as e:
+            logging.error(f"Failed to set native callback: {e}")
+            raise
+    
+    @export_to_lua("debugNativeRegistry")
+    def debug_native_registry() -> str:
+        """Debug function to inspect the native window registry"""
+        try:
+            registry_info = {
+                'count': len(native_ui.native_window_registry),
+                'window_ids': list(native_ui.native_window_registry.keys())
+            }
+            message = f"Registry has {registry_info['count']} windows: {registry_info['window_ids']}"
+            return message
+        except Exception as e:
+            logging.error(f"Failed to debug registry: {e}")
+            error_msg = f"Registry debug error: {e}"
+            return error_msg
+    
+    @export_to_lua("getNativeValue")
+    def get_native_value(window_id: str, element_id: str):
+        """Get value of a native UI element."""
+        try:
+            if window_id in native_ui.native_window_registry:
+                window = native_ui.native_window_registry[window_id]
+                return window.get_value(element_id)
+            return None
+        except Exception as e:
+            logging.error(f"Failed to get native value: {e}")
+            raise
+    
+    @export_to_lua("setNativeValue")
+    def set_native_value(window_id: str, element_id: str, value) -> bool:
+        """Set value of a native UI element."""
+        try:
+            if window_id in native_ui.native_window_registry:
+                window = native_ui.native_window_registry[window_id]
+                window.set_value(element_id, value)
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"Failed to set native value: {e}")
+            raise
+    
+    @export_to_lua("showNativeWindow")
+    def show_native_window(window_id: str) -> bool:
+        """Show a native window."""
+        try:
+            if window_id in native_ui.native_window_registry:
+                window = native_ui.native_window_registry[window_id]
+                window.show()
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"Failed to show native window: {e}")
+            raise
+    
+    @export_to_lua("hideNativeWindow")
+    def hide_native_window(window_id: str) -> bool:
+        """Hide a native window."""
+        try:
+            if window_id in native_ui.native_window_registry:
+                window = native_ui.native_window_registry[window_id]
+                window.hide()
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"Failed to hide native window: {e}")
+            raise
+    
+    @export_to_lua("closeNativeWindow")
+    def close_native_window(window_id: str) -> bool:
+        """Close a native window."""
+        try:
+            if window_id in native_ui.native_window_registry:
+                window = native_ui.native_window_registry[window_id]
+                window.close()
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"Failed to close native window: {e}")
+            raise
+    
+    @export_to_lua("listNativeWindows")
+    def list_native_windows() -> str:
+        """List all native windows."""
+        try:
+            return native_ui.list_native_windows()
+        except Exception as e:
+            logging.error(f"Failed to list native windows: {e}")
+            raise
+    
+    @export_to_lua("isNativeUIAvailable")
+    def is_native_ui_available() -> bool:
+        """Check if native UI is available."""
+        return native_ui.is_native_ui_available()
+
+else:
+    # Fallback functions when native UI is not available
+    @export_to_lua("createNativeWindow")
+    def create_native_window(title: str, width: int = 800, height: int = 600) -> Dict[str, Any]:
+        """Create a new native UI window."""
+        return {"error": "Native UI not available"}
+    
+    @export_to_lua("setNativeUI")
+    def set_native_ui(window_id: str, ui_description) -> bool:
+        """Set UI description for a native window."""
+        return False
+    
+    @export_to_lua("setNativeCallback")
+    def set_native_callback(window_id: str, element_id: str, callback_func) -> bool:
+        """Set callback for a native UI element."""
+        return False
+    
+    @export_to_lua("getNativeValue")
+    def get_native_value(window_id: str, element_id: str):
+        """Get value of a native UI element."""
+        return None
+    
+    @export_to_lua("setNativeValue")
+    def set_native_value(window_id: str, element_id: str, value) -> bool:
+        """Set value of a native UI element."""
+        return False
+    
+    @export_to_lua("showNativeWindow")
+    def show_native_window(window_id: str) -> bool:
+        """Show a native window."""
+        return False
+    
+    @export_to_lua("hideNativeWindow")
+    def hide_native_window(window_id: str) -> bool:
+        """Hide a native window."""
+        return False
+    
+    @export_to_lua("closeNativeWindow")
+    def close_native_window(window_id: str) -> bool:
+        """Close a native window."""
+        return False
+    
+    @export_to_lua("listNativeWindows")
+    def list_native_windows() -> str:
+        """List all native windows."""
+        return "ERROR: Native UI not available"
+    
+    @export_to_lua("isNativeUIAvailable")
+    def is_native_ui_available() -> bool:
+        """Check if native UI is available."""
+        return False
