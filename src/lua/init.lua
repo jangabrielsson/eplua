@@ -2,13 +2,17 @@
 -- It is initialized in the EPLua engine and provides access to timer functions.
 local _PY = _PY or {}
 
-local srcpath = "src\\"
-local initpath = srcpath.."lua\\?.lua;"
+-- Use config for cross-platform paths
+local config = _PY.config or {}
+local fileSep = config.fileSeparator or "/"
+local luaLibPath = config.luaLibPath or "src/lua"
+
+-- Build platform-appropriate path
+local initpath = luaLibPath .. fileSep .. "?.lua;"
 local current_path = package.path
 package.path = initpath .. current_path
 
-local debugger_config = { debug = false, host = "localhost", port = 8172 }
- _PY.mobdebug = { 
+ _PY.mobdebug = {     -- Setup void debug functions if we can't or wont load debugger
   on = function() end, 
   coro = function() end, 
   logging = function(_) end, 
@@ -17,17 +21,18 @@ local debugger_config = { debug = false, host = "localhost", port = 8172 }
   done = function() end 
 }
 
-if debugger_config then 
+-- Only try to start mobdebug if debugger is enabled in config
+if config.debugger then 
   local success, mobdebug = pcall(require, 'mobdebug')
   if success then
-    if debugger_config.debug then mobdebug.logging(true) end
+    if config.debugger then mobdebug.logging(true) end
     
     -- Set timeouts to prevent hanging
     mobdebug.yieldtimeout = 0.5  -- 500ms timeout for yield operations
     
     -- Try to start with timeout protection
     local start_success,err = pcall(function()
-      mobdebug.start(debugger_config.host, debugger_config.port)
+      mobdebug.start(config.debugger_host or "localhost", config.debugger_port or 8172)
       mobdebug.on()
       mobdebug.coro()
     end)
@@ -114,12 +119,16 @@ end
 
 function _PY.timerExpired(id,...)
   if callbacks[id] then 
+    local is_persistent = callbacks[id].persistent
+    
+    -- Execute the callback with error handling
     xpcall(callbacks[id].callback,function(err)
       print("Error in timer callback: " .. tostring(err))
       print(debug.traceback())
     end,...)
-    -- Only remove callback if it's not persistent
-    if callbacks[id] and not callbacks[id].persistent then
+    
+    -- Clean up non-persistent callbacks AFTER execution
+    if not is_persistent then
       callbacks[id] = nil
     end
   end

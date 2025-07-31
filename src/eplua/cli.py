@@ -14,7 +14,7 @@ import threading
 import argparse
 import io
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 # Fix Windows Unicode output issues
 def setup_unicode_output():
@@ -57,14 +57,36 @@ def check_tkinter_available() -> bool:
     except ImportError:
         return False
 
-def run_engine_thread(script_path: Optional[str] = None, fragments: list = None, bridge=None):
+def create_config_table(offline: bool = False, nodebugger: bool = False, 
+                       debugger_host: str = "localhost", debugger_port: int = 8172,
+                       run_for: Optional[int] = None) -> Dict[str, Any]:
+    """Create configuration table with platform info and CLI flags"""
+    config = {
+        "platform": sys.platform,  # 'win32', 'darwin', 'linux', etc.
+        "fileSeparator": "\\\\" if sys.platform == "win32" else "/",
+        "pathSeparator": ";" if sys.platform == "win32" else ":",
+        "isWindows": sys.platform == "win32",
+        "isMacOS": sys.platform == "darwin", 
+        "isLinux": sys.platform.startswith("linux"),
+        "pythonVersion": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "enginePath": str(Path(__file__).parent.parent).replace("\\", "\\\\"),
+        "luaLibPath": str(Path(__file__).parent.parent / "lua").replace("\\", "\\\\"),
+        "offline": offline,  # CLI flag for offline mode
+        "debugger": not nodebugger,  # CLI flag for debugger (inverted because --nodebugger)
+        "debugger_host": debugger_host,  # CLI flag for debugger host
+        "debugger_port": debugger_port,  # CLI flag for debugger port
+        "run_for": 10000000 if run_for == -1 else run_for,  # CLI flag for time limit (-1 -> very large number)
+    }
+    return config
+
+def run_engine_thread(script_path: Optional[str] = None, fragments: list = None, bridge=None, config: Dict[str, Any] = None):
     """Run Lua engine in a worker thread"""
     try:
         from eplua.engine import LuaEngine
         from eplua.gui_bridge import replace_gui_functions_with_bridge
         
-        # Create the engine
-        engine = LuaEngine()
+        # Create the engine with config
+        engine = LuaEngine(config=config)
         
         # Setup GUI bridge integration with shared bridge
         if bridge:
@@ -73,15 +95,52 @@ def run_engine_thread(script_path: Optional[str] = None, fragments: list = None,
         # Run the engine
         async def engine_main():
             try:
+                # Set up time limit timer if specified
+                timeout_task = None
+                run_for_seconds = config.get("run_for")
+                if run_for_seconds is not None:
+                    async def timeout_handler():
+                        await asyncio.sleep(run_for_seconds)
+                        print(f"⏰ Time limit reached ({run_for_seconds}s), terminating...")
+                        import os
+                        os._exit(0)
+                    
+                    timeout_task = asyncio.create_task(timeout_handler())
+                
                 for fragment in fragments:
                     await engine.run_script(f'_PY.luaFragment({repr(fragment)})', "fragment")
                 
                 if script_path:
                     await engine.run_script(f'_PY.mainLuaFile("{script_path}")', script_path)
                 
-                # Keep running while operations are active
-                while engine.has_active_operations() and engine.is_running():
-                    await asyncio.sleep(0.1)
+                # Keep running while operations are active (with different behaviors based on run_for)
+                if run_for_seconds == -1 or run_for_seconds == 10000000:
+                    # Run forever mode: ignore active operations, just keep running
+                    try:
+                        while True:
+                            await asyncio.sleep(1)  # Just sleep forever, Ctrl-C to exit
+                    except KeyboardInterrupt:
+                        pass
+                elif run_for_seconds is not None:
+                    # Time limit mode: normal active operations check + timeout
+                    while engine.has_active_operations() and engine.is_running():
+                        await asyncio.sleep(0.1)
+                    
+                    # If we exit the loop naturally, terminate
+                    import os
+                    os._exit(0)
+                else:
+                    # Default mode: exit when no active operations
+                    while engine.has_active_operations() and engine.is_running():
+                        await asyncio.sleep(0.1)
+                    
+                    # If we exit the loop, it means no active operations - terminate the process
+                    import os
+                    os._exit(0)
+                
+                # Cancel timeout task if we exit naturally
+                if timeout_task and not timeout_task.done():
+                    timeout_task.cancel()
                 
             except Exception as e:
                 safe_print(f"❌ Engine error: {e}", f"[ERROR] Engine error: {e}")
@@ -119,7 +178,7 @@ def run_gui_thread(bridge=None):
         import traceback
         traceback.print_exc()
 
-def run_eplua_simple(script_path: Optional[str] = None, fragments: list = None):
+def run_eplua_simple(script_path: Optional[str] = None, fragments: list = None, config: Dict[str, Any] = None):
     """
     Simplified EPLua runner
     
@@ -128,6 +187,7 @@ def run_eplua_simple(script_path: Optional[str] = None, fragments: list = None):
     2. Without tkinter: Main thread = Lua engine only
     """
     fragments = fragments or []
+    config = config or {}
     
     if check_tkinter_available():
         safe_print("🖥️ Native UI available - starting with GUI support", "[DESKTOP] Native UI available - starting with GUI support")
@@ -140,7 +200,7 @@ def run_eplua_simple(script_path: Optional[str] = None, fragments: list = None):
         # Start Lua engine in worker thread with shared bridge
         engine_thread = threading.Thread(
             target=run_engine_thread, 
-            args=(script_path, fragments, shared_bridge),
+            args=(script_path, fragments, shared_bridge, config),
             daemon=True
         )
         engine_thread.start()
@@ -171,7 +231,7 @@ def run_eplua_simple(script_path: Optional[str] = None, fragments: list = None):
         setup_stub_functions()
         
         # Run engine in main thread
-        run_engine_thread(script_path, fragments)
+        run_engine_thread(script_path, fragments, None, config)
 
 def main():
     """Main CLI entry point"""
@@ -182,6 +242,16 @@ def main():
     parser.add_argument("-l", type=str, help="Ignored (compatibility with standard lua)")
     parser.add_argument("--no-gui", action="store_true", 
                       help="Force disable GUI mode (run engine in main thread)")
+    parser.add_argument("-o", "--offline", action="store_true",
+                      help="Run in offline mode (disable network connections)")
+    parser.add_argument("--nodebugger", action="store_true",
+                      help="Disable Lua debugger (mobdebug) connection attempts")
+    parser.add_argument("--debugger-port", type=int, default=8172,
+                      help="Port for Lua debugger (mobdebug) connection (default: 8172)")
+    parser.add_argument("--debugger-host", type=str, default="localhost",
+                      help="Host for Lua debugger (mobdebug) connection (default: localhost)")
+    parser.add_argument("--run-for", type=int, default=None,
+                      help="Maximum time to run in seconds before terminating (-1 for indefinite, default: terminate when script completes)")
     
     args = parser.parse_args()
     
@@ -198,9 +268,18 @@ def main():
         script_path = str(script_file.resolve())
         script_path = script_path.replace("\\", "\\\\")  # Escape backslashes for Lua
     
+    # Create config table with CLI flags
+    config = create_config_table(
+        offline=args.offline, 
+        nodebugger=args.nodebugger,
+        debugger_host=getattr(args, 'debugger_host', 'localhost'),
+        debugger_port=getattr(args, 'debugger_port', 8172),
+        run_for=args.run_for
+    )
+    
     # Run EPLua
     try:
-        run_eplua_simple(script_path, args.fragments or [])
+        run_eplua_simple(script_path, args.fragments or [], config)
     except KeyboardInterrupt:
         safe_print("\n👋 EPLua terminated by user", "\n[WAVE] EPLua terminated by user")
     except Exception as e:

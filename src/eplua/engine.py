@@ -32,13 +32,16 @@ class LuaEngine:
     interact with Python's async timer system and other Python functionality.
     """
     
-    def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None):
+    def __init__(self, loop: Optional[asyncio.AbstractEventLoop] = None, config: Optional[Dict[str, Any]] = None):
         """
         Initialize the Lua engine.
         
         Args:
             loop: Event loop to use. If None, will try to get the current loop.
+            config: Configuration dictionary with platform info and CLI flags.
         """
+        # Store config for later use
+        self._config = config or {}
         # Add pylib directory to Python path for FFI library loading
         pylib_path = Path(__file__).parent.parent / "pylib"
         if pylib_path.exists() and str(pylib_path) not in sys.path:
@@ -85,6 +88,32 @@ class LuaEngine:
         py_table = self._lua.table()
         for name, func in all_bindings.items():
             py_table[name] = func
+            
+        # Add config table with platform information
+        config_table = self._lua.table()
+        
+        # Use provided config or create default
+        config_data = self._config
+        if not config_data:
+            # Fallback: create default config if none provided
+            config_data = {
+                "platform": sys.platform,
+                "fileSeparator": "\\\\" if sys.platform == "win32" else "/",
+                "pathSeparator": ";" if sys.platform == "win32" else ":",
+                "isWindows": sys.platform == "win32",
+                "isMacOS": sys.platform == "darwin",
+                "isLinux": sys.platform.startswith("linux"),
+                "pythonVersion": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                "enginePath": str(Path(__file__).parent.parent).replace("\\", "\\\\"),
+                "luaLibPath": str(Path(__file__).parent.parent / "lua").replace("\\", "\\\\"),
+                "offline": False,
+            }
+        
+        # Populate Lua table with config data
+        for key, value in config_data.items():
+            config_table[key] = value
+            
+        py_table["config"] = config_table
             
         self._lua.globals()["_PY"] = py_table
         
@@ -404,11 +433,6 @@ class LuaEngine:
         # Store the result for the waiting thread
         self._execution_results[request_id] = result
             
-    def has_active_operations(self) -> bool:
-        """Check if there are any active async operations (callbacks or intervals)."""
-        return (self.get_pending_callback_count() > 0 or 
-                self.get_running_intervals_count() > 0)
-        
     def get_bindings(self) -> LuaBindings:
         """Get the Lua bindings instance."""
         return self._bindings
