@@ -12,8 +12,42 @@ import asyncio
 import sys
 import threading
 import argparse
+import io
 from pathlib import Path
 from typing import Optional
+
+# Fix Windows Unicode output issues
+def setup_unicode_output():
+    """Setup proper Unicode output for Windows console"""
+    if sys.platform == "win32":
+        try:
+            # Try to set console to UTF-8 mode (Windows 10 1903+)
+            import os
+            os.system("chcp 65001 >nul 2>&1")
+            
+            # Wrap stdout/stderr with UTF-8 encoding
+            if hasattr(sys.stdout, 'buffer'):
+                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+            if hasattr(sys.stderr, 'buffer'):
+                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        except Exception:
+            # If anything fails, we'll fall back to ASCII-safe output
+            pass
+
+# Call this early
+setup_unicode_output()
+
+def safe_print(message, fallback_message=None):
+    """Print with Unicode support, fallback to ASCII if needed"""
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        if fallback_message:
+            print(fallback_message)
+        else:
+            # Replace common Unicode characters with ASCII equivalents
+            ascii_message = message.replace('🚀', '[ROCKET]').replace('🖥️', '[DESKTOP]').replace('📟', '[DEVICE]').replace('ℹ️', '[INFO]').replace('❌', '[ERROR]').replace('👋', '[WAVE]')
+            print(ascii_message)
 
 def check_tkinter_available() -> bool:
     """Check if tkinter is available"""
@@ -50,7 +84,7 @@ def run_engine_thread(script_path: Optional[str] = None, fragments: list = None,
                     await asyncio.sleep(0.1)
                 
             except Exception as e:
-                print(f"❌ Engine error: {e}")
+                safe_print(f"❌ Engine error: {e}", f"[ERROR] Engine error: {e}")
                 import traceback
                 traceback.print_exc()
         
@@ -58,7 +92,7 @@ def run_engine_thread(script_path: Optional[str] = None, fragments: list = None,
         asyncio.run(engine_main())
         
     except Exception as e:
-        print(f"❌ Engine thread error: {e}")
+        safe_print(f"❌ Engine thread error: {e}", f"[ERROR] Engine thread error: {e}")
         import traceback
         traceback.print_exc()
 
@@ -81,7 +115,7 @@ def run_gui_thread(bridge=None):
         gui_manager.start_gui_loop()
         
     except Exception as e:
-        print(f"❌ GUI error: {e}")
+        safe_print(f"❌ GUI error: {e}", f"[ERROR] GUI error: {e}")
         import traceback
         traceback.print_exc()
 
@@ -96,7 +130,7 @@ def run_eplua_simple(script_path: Optional[str] = None, fragments: list = None):
     fragments = fragments or []
     
     if check_tkinter_available():
-        print("🖥️ Native UI available - starting with GUI support")
+        safe_print("🖥️ Native UI available - starting with GUI support", "[DESKTOP] Native UI available - starting with GUI support")
         
         # Create shared bridge instance
         from eplua.gui_bridge import ThreadSafeGUIBridge, GUIManager
@@ -115,7 +149,7 @@ def run_eplua_simple(script_path: Optional[str] = None, fragments: list = None):
         run_gui_thread(shared_bridge)
         
     else:
-        print("📟 Native UI not available - running engine only")
+        safe_print("📟 Native UI not available - running engine only", "[DEVICE] Native UI not available - running engine only")
         
         # Setup basic stub GUI functions (do nothing but don't crash)
         def setup_stub_functions():
@@ -159,17 +193,18 @@ def main():
     if args.script:
         script_file = Path(args.script)
         if not script_file.exists():
-            print(f"❌ Script file not found: {args.script}")
+            safe_print(f"❌ Script file not found: {args.script}", f"[ERROR] Script file not found: {args.script}")
             sys.exit(1)
         script_path = str(script_file.resolve())
+        script_path = script_path.replace("\\", "\\\\")  # Escape backslashes for Lua
     
     # Run EPLua
     try:
         run_eplua_simple(script_path, args.fragments or [])
     except KeyboardInterrupt:
-        print("\n👋 EPLua terminated by user")
+        safe_print("\n👋 EPLua terminated by user", "\n[WAVE] EPLua terminated by user")
     except Exception as e:
-        print(f"❌ EPLua error: {e}")
+        safe_print(f"❌ EPLua error: {e}", f"[ERROR] EPLua error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

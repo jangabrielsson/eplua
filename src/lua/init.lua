@@ -2,8 +2,8 @@
 -- It is initialized in the EPLua engine and provides access to timer functions.
 local _PY = _PY or {}
 
-local srcpath = "src/"
-local initpath = srcpath.."lua/?.lua;"
+local srcpath = "src\\"
+local initpath = srcpath.."lua\\?.lua;"
 local current_path = package.path
 package.path = initpath .. current_path
 

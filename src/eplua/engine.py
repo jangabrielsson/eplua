@@ -97,7 +97,8 @@ class LuaEngine:
         if init_lua_path.exists():
             logger.debug("Loading init.lua")
             # Use Lua's loadfile function with qualified filename
-            qualified_filename = "src/lua/init.lua"
+            qualified_filename = str(init_lua_path)
+            qualified_filename = qualified_filename.replace("\\", "\\\\")  # Escape backslashes for Lua
             lua_loadfile_code = f"loadfile('{qualified_filename}')()"
             self._lua.execute(lua_loadfile_code)
         else:
