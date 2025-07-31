@@ -59,7 +59,9 @@ def check_tkinter_available() -> bool:
 
 def create_config_table(offline: bool = False, nodebugger: bool = False, 
                        debugger_host: str = "localhost", debugger_port: int = 8172,
-                       run_for: Optional[int] = None) -> Dict[str, Any]:
+                       run_for: Optional[int] = None,
+                       fibaro: bool = False,
+                       headers: Optional[list] = None) -> Dict[str, Any]:
     """Create configuration table with platform info and CLI flags"""
     config = {
         "platform": sys.platform,  # 'win32', 'darwin', 'linux', etc.
@@ -76,6 +78,8 @@ def create_config_table(offline: bool = False, nodebugger: bool = False,
         "debugger_host": debugger_host,  # CLI flag for debugger host
         "debugger_port": debugger_port,  # CLI flag for debugger port
         "run_for": 10000000 if run_for == -1 else run_for,  # CLI flag for time limit (-1 -> very large number)
+        "fibaro": fibaro,  # CLI flag for Fibaro API compatibility
+        "headers": headers or [],  # CLI flag for QuickApp headers
     }
     return config
 
@@ -252,6 +256,10 @@ def main():
                       help="Host for Lua debugger (mobdebug) connection (default: localhost)")
     parser.add_argument("--run-for", type=int, default=None,
                       help="Maximum time to run in seconds before terminating (-1 for indefinite, default: terminate when script completes)")
+    parser.add_argument("--fibaro", action="store_true",
+                      help="Enable Fibaro API compatibility (sets config.fibaro=true)")
+    parser.add_argument("--header", "-H", action="append", dest="headers",
+                      help="Add QuickApp header (can be specified multiple times, collected in config.headers table)")
     
     args = parser.parse_args()
     
@@ -274,7 +282,9 @@ def main():
         nodebugger=args.nodebugger,
         debugger_host=getattr(args, 'debugger_host', 'localhost'),
         debugger_port=getattr(args, 'debugger_port', 8172),
-        run_for=args.run_for
+        run_for=args.run_for,
+        fibaro=args.fibaro,
+        headers=args.headers or []
     )
     
     # Run EPLua
