@@ -295,15 +295,22 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
         
         # Send message to all connected clients
         disconnected = set()
-        for websocket in connections:
+        for websocket in connections.copy():  # Use copy to avoid modification during iteration
             try:
+                # Check if WebSocket is still connected before sending
+                if websocket.client_state.name != "CONNECTED":
+                    disconnected.add(websocket)
+                    continue
                 await websocket.send_json(message)
             except Exception as e:
-                logger.warning(f"Failed to send to WebSocket client: {e}")
+                logger.debug(f"Failed to send to WebSocket client: {e}")  # Reduced to debug level
                 disconnected.add(websocket)
         
         # Clean up disconnected clients
         connections -= disconnected
+        # Update app.state if needed
+        if hasattr(app.state, 'websocket_connections'):
+            app.state.websocket_connections -= disconnected
     
     async def flush_pending_broadcasts():
         """Send all pending broadcasts to newly connected WebSocket clients"""
@@ -319,15 +326,22 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
         # Send all buffered messages
         for message in pending_broadcasts:
             disconnected = set()
-            for websocket in connections:
+            for websocket in connections.copy():  # Use copy to avoid modification during iteration
                 try:
+                    # Check if WebSocket is still connected before sending
+                    if websocket.client_state.name != "CONNECTED":
+                        disconnected.add(websocket)
+                        continue
                     await websocket.send_json(message)
                 except Exception as e:
-                    logger.warning(f"Failed to send buffered message: {e}")
+                    logger.debug(f"Failed to send buffered message: {e}")  # Reduced to debug level
                     disconnected.add(websocket)
             
             # Clean up disconnected clients
             connections -= disconnected
+            # Update app.state if needed
+            if hasattr(app.state, 'websocket_connections'):
+                app.state.websocket_connections -= disconnected
         
         # Clear the buffer after successful delivery
         pending_broadcasts.clear()
@@ -335,24 +349,38 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
         """WebSocket endpoint for real-time UI updates"""
-        await websocket.accept()
-        websocket_connections.add(websocket)
-        logger.info(f"WebSocket connection accepted. Total connections: {len(websocket_connections)}")
-        
-        # Flush any pending broadcasts to the new connection
-        if pending_broadcasts:
-            await flush_pending_broadcasts()
-        
         try:
-            while True:
-                # Keep connection alive by receiving messages
-                await websocket.receive_text()
-        except WebSocketDisconnect:
-            logger.info("WebSocket client disconnected")
+            await websocket.accept()
+            websocket_connections.add(websocket)
+            # Also add to app.state for consistency
+            if not hasattr(app.state, 'websocket_connections'):
+                app.state.websocket_connections = set()
+            app.state.websocket_connections.add(websocket)
+            
+            logger.info(f"WebSocket connection accepted. Total connections: {len(websocket_connections)}")
+            
+            # Small delay to ensure connection is fully established
+            await asyncio.sleep(0.1)
+            
+            # Flush any pending broadcasts to the new connection
+            if pending_broadcasts:
+                await flush_pending_broadcasts()
+            
+            try:
+                while True:
+                    # Keep connection alive by receiving messages
+                    await websocket.receive_text()
+            except WebSocketDisconnect:
+                logger.info("WebSocket client disconnected normally")
+            except Exception as e:
+                logger.debug(f"WebSocket error during communication: {e}")
         except Exception as e:
-            logger.warning(f"WebSocket error: {e}")
+            logger.debug(f"WebSocket connection error: {e}")
         finally:
+            # Clean up the connection
             websocket_connections.discard(websocket)
+            if hasattr(app.state, 'websocket_connections'):
+                app.state.websocket_connections.discard(websocket)
             logger.info(f"WebSocket connection removed. Total connections: {len(websocket_connections)}")
     
     # Store the broadcast function and connections in app state for access from background task
@@ -392,54 +420,6 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
                                 await app.state.broadcast_to_websockets(qa_id, element_id, property_name, value)
                             else:
                                 logger.warning("broadcast_to_websockets function not found in app.state")
-                            
-                    except queue.Empty:
-                        pass
-                        
-                except Exception as e:
-                    logger.error(f"Error processing broadcast request: {e}")
-                
-                # Small delay to avoid busy waiting, but check shutdown frequently
-                try:
-                    await asyncio.wait_for(shutdown_event.wait(), timeout=0.01)
-                    break  # Shutdown signal received
-                except asyncio.TimeoutError:
-                    pass  # Continue processing
-            
-            logger.info("📥 Broadcast processor stopping...")
-        
-        # Start the broadcast processor
-        logger.info("🔄 Starting broadcast processor task...")
-        asyncio.create_task(process_websocket_broadcasts())
-        logger.info("🔄 Queue broadcast processor started")
-    @app.on_event("startup")
-    async def startup_event():
-        """Initialize background tasks"""
-        logger.info("🚀 FastAPI startup event called!")
-        
-        async def process_websocket_broadcasts():
-            """Process broadcast requests from the broadcast queue"""
-            logger.info("📥 Broadcast processor starting...")
-            
-            while not shutdown_event.is_set():
-                try:
-                    # Check for broadcast requests in the broadcast queue (non-blocking)
-                    try:
-                        message = broadcast_queue.get_nowait()
-                        logger.info(f"📥 FastAPI process received broadcast message: {message}")
-                        
-                        if isinstance(message, dict) and message.get("type") == "websocket_broadcast":
-                            # Handle broadcast request directly
-                            data = message.get("data", {})
-                            qa_id = data.get("qa_id")
-                            element_id = data.get("element_id")
-                            property_name = data.get("property_name")
-                            value = data.get("value")
-                            
-                            logger.info(f"🔄 Processing WebSocket broadcast: QA {qa_id}, {element_id}.{property_name} = {value}")
-                            
-                            await broadcast_to_websockets(qa_id, element_id, property_name, value)
-                            logger.info(f"✅ Broadcast sent to WebSocket clients: QA {qa_id}, {element_id}.{property_name} = {value}")
                             
                     except queue.Empty:
                         pass

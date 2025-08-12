@@ -154,14 +154,52 @@ class WindowManager:
             # Check if the existing window is still open and has the same URL
             if self._is_window_still_open(existing_window):
                 if existing_window.url == url:
-                    logger.debug(f"Reusing existing window {window_id} (same URL)")
-                    return True
+                    # For QuickApp windows, we're not sure if the browser window is actually open
+                    # So we'll attempt to open it again, which should reuse if it exists
+                    if "quickapp_ui.html" in url and "qa_id=" in url:
+                        logger.info(f"QuickApp window {window_id} exists in state, attempting to open/reuse")
+                        # Update the window properties in case they changed
+                        existing_window.width = width
+                        existing_window.height = height
+                        existing_window.x = x
+                        existing_window.y = y
+                        # Try to launch the browser - this will reuse if window is open, or create new if closed
+                        if self._launch_browser(existing_window):
+                            # Mark as created in this session so it gets saved
+                            existing_window.created_in_session = True
+                            self._save_window_state()
+                            logger.info(f"Successfully opened/reused QuickApp window {window_id}")
+                            return True
+                        else:
+                            logger.warning(f"Failed to open QuickApp window {window_id}, removing from state")
+                            self._remove_window_reference(existing_window)
+                            # Continue to create a new window below
+                    else:
+                        logger.info(f"Reusing existing non-QuickApp window {window_id} (same URL)")
+                        return True
                 else:
-                    logger.info(f"Existing window {window_id} has different URL, updating")
-                    # Update the URL in the existing window (refresh)
+                    logger.info(f"Existing window {window_id} has different URL, updating and reusing")
+                    # Update the URL in the existing window
                     existing_window.url = url
-                    # Optionally refresh the browser window here
-                    return True
+                    existing_window.width = width
+                    existing_window.height = height
+                    existing_window.x = x
+                    existing_window.y = y
+                    # For QuickApp windows, try to open with new URL
+                    if "quickapp_ui.html" in url and "qa_id=" in url:
+                        if self._launch_browser(existing_window):
+                            # Mark as created in this session so it gets saved
+                            existing_window.created_in_session = True
+                            self._save_window_state()
+                            return True
+                        else:
+                            logger.warning(f"Failed to update QuickApp window {window_id}, removing from state")
+                            self._remove_window_reference(existing_window)
+                            # Continue to create a new window below
+                    else:
+                        # The window is already open, just update our records
+                        self._save_window_state()
+                        return True
             else:
                 logger.debug(f"Existing window {window_id} no longer open, will create new one")
                 # Remove the stale window reference
@@ -220,21 +258,27 @@ class WindowManager:
     def _is_window_still_open(self, window: BrowserWindow) -> bool:
         """
         Check if a window is still actually open.
-        Since we can't reliably track browser windows across processes,
-        we'll assume windows from previous runs are no longer valid.
+        For QuickApp windows, we assume they might still be open across sessions.
+        For other windows, only trust those created in this session.
         
         Args:
             window: BrowserWindow to check
             
         Returns:
-            False - always assume windows from previous runs are closed
+            True if window should be considered open, False otherwise
         """
-        # For windows created in this session, we could potentially track them,
-        # but for simplicity and reliability, we'll always assume windows from
-        # persistent state are no longer valid and create new ones.
-        # This ensures users always get a visible window.
-        logger.debug(f"Assuming window {window.window_id} is no longer open (safer approach)")
-        return False
+        # For QuickApp windows (identified by the URL pattern), be more optimistic about reuse
+        if "quickapp_ui.html" in window.url and "qa_id=" in window.url:
+            logger.debug(f"QuickApp window {window.window_id} - assuming may still be open for reuse")
+            return True
+        
+        # For windows created in this session, assume they're still open
+        if getattr(window, 'created_in_session', False):
+            logger.debug(f"Window {window.window_id} was created in this session, assuming still open")
+            return True
+        else:
+            logger.debug(f"Non-QuickApp window {window.window_id} from previous session, assuming closed")
+            return False
 
     def _remove_window_reference(self, window: BrowserWindow):
         """Remove all references to a window that's no longer open"""
@@ -363,7 +407,7 @@ class WindowManager:
         
     def _launch_browser(self, window: BrowserWindow) -> bool:
         """
-        Launch a browser window using Python's webbrowser module.
+        Launch a browser window using the most reliable method for new windows.
         
         Args:
             window: BrowserWindow instance to launch
@@ -374,9 +418,12 @@ class WindowManager:
         try:
             logger.debug(f"Launching browser for URL: {window.url}")
             
-            # Use webbrowser module with new=1 to force a new window
-            # This is cross-platform and much simpler than platform-specific approaches
-            success = webbrowser.open(window.url, new=1, autoraise=True)
+            # macOS-specific approach for reliable new window creation
+            if self.system == 'darwin':
+                success = self._launch_browser_macos(window)
+            else:
+                # For other platforms, use webbrowser module
+                success = webbrowser.open(window.url, new=1, autoraise=True)
             
             if success:
                 logger.info(f"Successfully launched browser window for {window.url}")
@@ -388,6 +435,102 @@ class WindowManager:
         except Exception as e:
             logger.error(f"Error launching browser: {e}")
             return False
+    
+    def _launch_browser_macos(self, window: BrowserWindow) -> bool:
+        """
+        Launch a browser window on macOS using AppleScript to create a proper new window.
+        
+        Args:
+            window: BrowserWindow instance to launch
+            
+        Returns:
+            True if browser was launched successfully, False otherwise
+        """
+        import subprocess
+        import urllib.parse
+        
+        try:
+            # Extract QA ID from URL for matching
+            qa_id = ""
+            if "qa_id=" in window.url:
+                qa_id = window.url.split("qa_id=")[1].split("&")[0]
+            
+            # Use AppleScript to find existing window or create new one with proper size and position
+            applescript = f'''
+            tell application "Safari"
+                set foundWindow to false
+                set targetURL to "{window.url}"
+                set qaId to "{qa_id}"
+                
+                -- Check if a window with this QA ID already exists
+                if (exists (first window)) and qaId is not "" then
+                    repeat with w in windows
+                        if (exists (current tab of w)) then
+                            set currentURL to URL of current tab of w
+                            if currentURL contains ("qa_id=" & qaId) then
+                                -- Found existing window with same QA ID, bring just this window to front
+                                set index of w to 1
+                                set bounds of w to {{{window.x}, {window.y}, {window.x + window.width}, {window.y + window.height}}}
+                                set foundWindow to true
+                                exit repeat
+                            end if
+                        end if
+                    end repeat
+                end if
+                
+                -- If no existing window found, create a new one
+                if not foundWindow then
+                    if not (exists (first window)) then
+                        -- If no Safari windows exist, just open the URL normally
+                        open location targetURL
+                        delay 0.5
+                        -- Set bounds for the first window
+                        if (exists (first window)) then
+                            set bounds of first window to {{{window.x}, {window.y}, {window.x + window.width}, {window.y + window.height}}}
+                            -- Only bring this window to front, don't activate entire Safari
+                            set index of first window to 1
+                        end if
+                    else
+                        -- Create a new window with the URL
+                        set newDoc to make new document with properties {{URL:targetURL}}
+                        delay 0.5
+                        -- Find the window containing the new document and set its bounds
+                        repeat with w in windows
+                            if (exists (current tab of w)) and (URL of current tab of w contains targetURL) then
+                                set bounds of w to {{{window.x}, {window.y}, {window.x + window.width}, {window.y + window.height}}}
+                                -- Only bring this specific window to front
+                                set index of w to 1
+                                exit repeat
+                            end if
+                        end repeat
+                    end if
+                end if
+                -- Don't activate Safari - this would bring all windows to front
+            end tell
+            '''
+            
+            result = subprocess.run(
+                ["osascript", "-e", applescript],
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
+            
+            if result.returncode == 0:
+                logger.debug(f"macOS AppleScript command succeeded for {window.url} ({window.width}x{window.height} at {window.x},{window.y})")
+                return True
+            else:
+                logger.warning(f"macOS AppleScript failed (code {result.returncode}), falling back to webbrowser")
+                logger.debug(f"stderr: {result.stderr}")
+                # Fallback to webbrowser module
+                return webbrowser.open(window.url, new=1, autoraise=True)
+                
+        except subprocess.TimeoutExpired:
+            logger.warning("macOS AppleScript command timed out, falling back to webbrowser")
+            return webbrowser.open(window.url, new=1, autoraise=True)
+        except Exception as e:
+            logger.warning(f"macOS AppleScript command failed: {e}, falling back to webbrowser")
+            return webbrowser.open(window.url, new=1, autoraise=True)
 
 
 # Global window manager instance

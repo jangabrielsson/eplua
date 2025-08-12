@@ -7,6 +7,7 @@ import json
 import logging
 import importlib
 import importlib.util
+import time
 from typing import Dict, Any
 from .lua_bindings import export_to_lua, python_to_lua_table, lua_to_python_table, get_exported_functions, get_global_engine
 
@@ -439,6 +440,66 @@ def open_quickapp_window(qa_id: int, title: str, width: int = 800, height: int =
         
         if success:
             logging.info(f"Created QuickApp window for QA {qa_id}: {title}")
+            
+            # Schedule a UI refresh after the window has had time to load
+            # This ensures the window shows the latest UI state even if it opened in the background
+            import asyncio
+            async def refresh_window_ui():
+                await asyncio.sleep(1.5)  # Wait for window to load and WebSocket to connect
+                try:
+                    # Method 1: Try to get QuickApp data from Fibaro manager
+                    qa_data = None
+                    if hasattr(engine, 'fibaro_manager') and engine.fibaro_manager:
+                        qa_data = engine.fibaro_manager.get_quickapp_info(qa_id)
+                    
+                    # Method 2: Try to get data via the FastAPI process manager
+                    if not qa_data:
+                        from . import fastapi_process
+                        process_manager = fastapi_process.get_process_manager()
+                        if process_manager and process_manager.quickapp_callback:
+                            try:
+                                # DISABLED: This direct callback was causing 30-second delays in UI callbacks
+                                # by blocking the IPC message processing thread
+                                # qa_data = process_manager.quickapp_callback("get_quickapp", qa_id)
+                                logging.debug("Skipping direct quickapp_callback to avoid IPC blocking")
+                            except Exception as e:
+                                logging.debug(f"FastAPI process manager quickapp callback failed: {e}")
+                    
+                    if qa_data and 'UI' in qa_data:
+                        # Broadcast a refresh for each UI element to force update
+                        refresh_count = 0
+                        for ui_row in qa_data['UI']:
+                            if isinstance(ui_row, list):
+                                # Multiple elements in one row
+                                for element in ui_row:
+                                    if isinstance(element, dict) and 'id' in element:
+                                        element_id = element['id']
+                                        # Broadcast current values for key properties
+                                        for prop_name in ['text', 'value', 'visible']:
+                                            if prop_name in element:
+                                                broadcast_view_update(qa_id, element_id, prop_name, element[prop_name])
+                                                refresh_count += 1
+                            elif isinstance(ui_row, dict) and 'id' in ui_row:
+                                # Single element
+                                element_id = ui_row['id']
+                                # Broadcast current values for key properties
+                                for prop_name in ['text', 'value', 'visible']:
+                                    if prop_name in ui_row:
+                                        broadcast_view_update(qa_id, element_id, prop_name, ui_row[prop_name])
+                                        refresh_count += 1
+                        
+                        logging.info(f"Triggered {refresh_count} UI property refreshes for newly opened QuickApp {qa_id}")
+                    else:
+                        # Fallback: Send a generic refresh signal
+                        logging.debug(f"No UI data found for QuickApp {qa_id}, sending generic refresh")
+                        # Send a dummy update to trigger WebSocket activity
+                        broadcast_view_update(qa_id, "refresh_trigger", "timestamp", str(int(time.time())))
+                        
+                except Exception as e:
+                    logging.warning(f"Failed to refresh UI for QuickApp {qa_id}: {e}")
+            
+            # Schedule the refresh
+            asyncio.create_task(refresh_window_ui())
         else:
             logging.error(f"Failed to create QuickApp window for QA {qa_id}")
             

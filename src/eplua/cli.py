@@ -67,12 +67,19 @@ def display_startup_greeting(config: Dict[str, Any]):
     eplua_version = "0.1.0"  # From pyproject.toml
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     
-    # Use print for startup greeting so it's always visible
-    print(f"🚀 EPLua version {eplua_version}")
-    print(f"Python version {python_version}") 
-    print(f"Lua version {lua_version}")
-    print(f"API port {api_port}")
-    print(f"Telnet port {telnet_port}")
+    # ANSI color codes
+    CYAN = "\033[96m"
+    GREEN = "\033[92m" 
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    MAGENTA = "\033[95m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    
+    # Use colored print for startup greeting
+    print(f"{CYAN}{BOLD}🚀 EPLua version {eplua_version}{RESET}")
+    print(f"{GREEN}Python:{python_version}{RESET}, {BLUE}Lua:{lua_version}{RESET}")
+    print(f"{YELLOW}API:{api_port}{RESET}, {MAGENTA}Telnet:{telnet_port}{RESET}")
 
 
 def safe_print(message, fallback_message=None):

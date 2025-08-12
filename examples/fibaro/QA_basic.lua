@@ -9,11 +9,16 @@ function QuickApp:onInit()
   self:debug(self.name,self.id)
 
   self:updateProperty("value",true)
-  setTimeout(function() self:updateProperty("value",false) end,3000)
+  --setTimeout(function() self:updateProperty("value",false) end,3000)
   -- self:internalStorageSet("test","X")
   -- print("ISS",self:internalStorageGet("test"))
 
-  setInterval(function() end,1000)
+  local val = true
+  setInterval(function() 
+    val = not val
+    print(val)
+    self:updateProperty("value",val) 
+    end,2000)
 end
 
 function QuickApp:turnOn()

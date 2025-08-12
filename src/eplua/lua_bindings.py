@@ -192,7 +192,7 @@ class LuaBindings:
             """Enhanced print function for Lua scripts."""
             message = " ".join(str(arg) for arg in args)
             logger.info(f"Lua: {message}")
-            print(f"[Lua] {message}", flush=True)
+            print(f"{message}", flush=True)
         
         @export_to_lua("log")
         def lua_log(level: str, message: str) -> None:
