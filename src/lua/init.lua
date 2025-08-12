@@ -376,6 +376,7 @@ end
 
 function _PY.fibaroApiHook(method, path, data)
   -- Return service unavailable - Fibaro API not loaded
+  print("❌ init.lua fibaroApiHook called (should not happen!) with:", method, path, data)
   return nil, 503
 end
 
@@ -388,6 +389,14 @@ if runFor then
   elseif runFor < 0 then
     _PY.setTimeout(function() os.exit() end, (-runFor) * 1000) -- Kill exactly runFor seconds
   end
+end
+
+_PY.getQuickapps = function()
+  return nil, 503
+end
+
+_PY.getQuickapp = function(id)
+  return nil, 503
 end
 
 ----------------- Import standard libraries ----------------

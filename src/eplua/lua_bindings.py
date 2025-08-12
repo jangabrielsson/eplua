@@ -652,6 +652,160 @@ class LuaBindings:
                             pass
                         self.telnet_clients.remove((reader, writer))
         
+        # Refresh states polling and event queue functions
+        
+        @export_to_lua("start_refresh_states_polling")
+        def start_refresh_states_polling(url: str, interval_seconds: float = 1.0) -> bool:
+            """Start background polling for refresh states"""
+            import threading
+            import time
+            import requests
+            from typing import Dict, Any
+            
+            try:
+                def poll_refresh_states():
+                    """Background thread function for polling refresh states"""
+                    while getattr(threading.current_thread(), "running", True):
+                        try:
+                            # Make the HTTP request
+                            response = requests.get(url, timeout=5)
+                            if response.status_code == 200:
+                                data = response.json()
+                                
+                                # Convert Python data to Lua-compatible format
+                                lua_data = python_to_lua_table(data)
+                                
+                                # Send result to Lua via thread-safe callback
+                                self.engine.execute_script_from_thread(
+                                    f"if _G.onRefreshStatesUpdate then _G.onRefreshStatesUpdate({lua_data}) end"
+                                )
+                            
+                        except Exception as e:
+                            # Log error and continue polling
+                            print(f"Refresh states polling error: {e}")
+                        
+                        # Sleep for the specified interval
+                        time.sleep(interval_seconds)
+                
+                # Create and start the polling thread
+                thread = threading.Thread(target=poll_refresh_states, daemon=True)
+                thread.running = True
+                thread.start()
+                
+                # Store thread reference for later cleanup
+                if not hasattr(self, 'refresh_states_thread'):
+                    self.refresh_states_thread = thread
+                
+                return True
+                
+            except Exception as e:
+                print(f"Failed to start refresh states polling: {e}")
+                return False
+        
+        @export_to_lua("stop_refresh_states_polling")
+        def stop_refresh_states_polling() -> bool:
+            """Stop background polling for refresh states"""
+            try:
+                if hasattr(self, 'refresh_states_thread') and self.refresh_states_thread:
+                    # Signal thread to stop
+                    self.refresh_states_thread.running = False
+                    self.refresh_states_thread.join(timeout=2.0)
+                    self.refresh_states_thread = None
+                    return True
+                return False
+            except Exception as e:
+                print(f"Failed to stop refresh states polling: {e}")
+                return False
+        
+        @export_to_lua("init_event_queue")
+        def init_event_queue() -> bool:
+            """Initialize the global event queue"""
+            try:
+                import queue
+                
+                if not hasattr(self, 'event_queue'):
+                    self.event_queue = queue.Queue()
+                return True
+                
+            except Exception as e:
+                print(f"Failed to initialize event queue: {e}")
+                return False
+        
+        @export_to_lua("add_event")
+        def add_event(event_data: Any) -> bool:
+            """Add an event to the global event queue"""
+            try:
+                # Initialize queue if not exists
+                if not hasattr(self, 'event_queue'):
+                    init_event_queue()
+                
+                # Convert to Lua-compatible format before storing
+                lua_event = python_to_lua_table(event_data)
+                self.event_queue.put(lua_event)
+                return True
+                
+            except Exception as e:
+                print(f"Failed to add event to queue: {e}")
+                return False
+        
+        @export_to_lua("get_events")
+        def get_events(max_events: int = 10) -> Any:
+            """Get events from the global event queue (non-blocking)"""
+            try:
+                import queue
+                
+                if not hasattr(self, 'event_queue'):
+                    init_event_queue()
+                    return python_to_lua_table([])
+                
+                events = []
+                q = self.event_queue
+                
+                # Get up to max_events from the queue
+                for _ in range(max_events):
+                    try:
+                        event = q.get_nowait()
+                        events.append(event)
+                    except queue.Empty:
+                        break
+                
+                return python_to_lua_table(events)
+                
+            except Exception as e:
+                print(f"Failed to get events from queue: {e}")
+                return python_to_lua_table([])
+        
+        @export_to_lua("get_event_count")
+        def get_event_count() -> int:
+            """Get the current number of events in the queue"""
+            try:
+                if hasattr(self, 'event_queue'):
+                    return self.event_queue.qsize()
+                return 0
+                
+            except Exception as e:
+                print(f"Failed to get event count: {e}")
+                return 0
+        
+        @export_to_lua("clear_events")
+        def clear_events() -> bool:
+            """Clear all events from the global event queue"""
+            try:
+                if hasattr(self, 'event_queue'):
+                    q = self.event_queue
+                    # Clear the queue
+                    while not q.empty():
+                        try:
+                            q.get_nowait()
+                        except:
+                            break
+                    return True
+                return False
+                
+            except Exception as e:
+                print(f"Failed to clear event queue: {e}")
+                return False
+        
     def get_all_bindings(self) -> Dict[str, Any]:
         """
         Get all available bindings for Lua.

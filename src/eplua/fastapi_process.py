@@ -4,6 +4,7 @@ Runs FastAPI in a separate process and communicates with the main Lua engine via
 This eliminates asyncio event loop conflicts and provides a stable web server
 """
 
+import asyncio
 import json
 import logging
 import multiprocessing
@@ -12,9 +13,10 @@ import time
 import uuid
 from typing import Dict, Any, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
@@ -44,7 +46,7 @@ class IPCMessage(BaseModel):
     timestamp: float
 
 
-def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: multiprocessing.Queue, config: Dict[str, Any]) -> FastAPI:
+def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: multiprocessing.Queue, broadcast_queue: multiprocessing.Queue, config: Dict[str, Any]) -> FastAPI:
     """Create the FastAPI application with IPC communication"""
     
     app = FastAPI(
@@ -61,6 +63,15 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Mount static files for QuickApp UI
+    import os
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    if os.path.exists(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+        logger.info(f"📁 Static files mounted from: {static_dir}")
+    else:
+        logger.warning(f"⚠️ Static directory not found: {static_dir}")
     
     # Server statistics
     start_time = time.time()
@@ -222,10 +233,184 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
             error_msg = result.get("error", "Fibaro API hook error")
             raise HTTPException(status_code=status_code, detail=error_msg)
     
+        # QuickApp endpoints for UI structure and device data
+    @app.get("/plua/quickApp/{qa_id}/info")
+    async def get_quickapp_info(qa_id: int):
+        """Get QuickApp UI structure and device data"""
+        logger.info(f"📱 QuickApp info requested for ID: {qa_id}")
+        
+        # Get QuickApp data from Lua engine via IPC
+        result = await send_ipc_request(
+            "quickapp_info",
+            {"qa_id": qa_id},
+            timeout=10.0
+        )
+        
+        if result.get("success", False):
+            return result.get("data")
+        else:
+            error_msg = result.get("error", f"QuickApp {qa_id} not found")
+            raise HTTPException(status_code=404, detail=error_msg)
+    
+    @app.get("/plua/quickApp/info")
+    async def get_all_quickapps_info():
+        """Get all QuickApps UI structures and device data"""
+        logger.info("📱 All QuickApps info requested")
+        
+        # Get all QuickApps data from Lua engine via IPC
+        result = await send_ipc_request(
+            "all_quickapps_info",
+            {},
+            timeout=10.0
+        )
+        
+        if result.get("success", False):
+            return result.get("data", [])
+        else:
+            error_msg = result.get("error", "Failed to get QuickApps info")
+            raise HTTPException(status_code=500, detail=error_msg)
+    
+    @app.get("/plua/quickApp/info")
+    async def get_all_quickapps_info():
+        """Get all QuickApps UI structures and device data"""
+        logger.info("📱 All QuickApps info requested")
+        
+        # Get all QuickApps data from Lua engine via IPC
+        result = await send_ipc_request(
+            "all_quickapps_info",
+            {},
+            timeout=10.0
+        )
+        
+        if result.get("success", False):
+            return result.get("data", [])
+        else:
+            error_msg = result.get("error", "Failed to get QuickApps info")
+            raise HTTPException(status_code=500, detail=error_msg)
+    
+    # WebSocket endpoint for real-time UI updates
+    websocket_connections = set()
+    
+    @app.websocket("/ws")
+    async def websocket_endpoint(websocket: WebSocket):
+        """WebSocket endpoint for real-time UI updates"""
+        await websocket.accept()
+        websocket_connections.add(websocket)
+        logger.info(f"WebSocket connection accepted. Total connections: {len(websocket_connections)}")
+        
+        try:
+            while True:
+                # Keep connection alive by receiving messages
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            logger.info("WebSocket client disconnected")
+        except Exception as e:
+            logger.warning(f"WebSocket error: {e}")
+        finally:
+            websocket_connections.discard(websocket)
+            logger.info(f"WebSocket connection removed. Total connections: {len(websocket_connections)}")
+    
+    async def broadcast_to_websockets(qa_id: int, element_id: str, property_name: str, value):
+        """Broadcast a view update to all connected WebSocket clients"""
+        logger.info(f"🔔 broadcast_to_websockets called: QA {qa_id}, {element_id}.{property_name} = {value}")
+        logger.info(f"📊 WebSocket connections: {len(websocket_connections)}")
+        
+        if not websocket_connections:
+            logger.warning("⚠️ No WebSocket connections available for broadcast")
+            return
+            
+        message = {
+            "type": "view_update",
+            "qa_id": qa_id,
+            "element_id": element_id,
+            "property_name": property_name,
+            "value": value
+        }
+        
+        logger.info(f"📤 Sending WebSocket message: {message}")
+        
+        disconnected = set()
+        for websocket in websocket_connections:
+            try:
+                await websocket.send_json(message)
+                logger.info(f"✅ Message sent to WebSocket client")
+            except Exception as e:
+                logger.warning(f"❌ Failed to send to WebSocket client: {e}")
+                disconnected.add(websocket)
+        
+        # Clean up disconnected clients
+        websocket_connections -= disconnected
+    
+    # Store broadcast function in app state for IPC access
+    app.state.broadcast_to_websockets = broadcast_to_websockets
+    
+    # Shutdown event to signal background tasks to stop
+    shutdown_event = asyncio.Event()
+    
+    # Background task to process WebSocket broadcasts from the request queue
+    @app.on_event("startup")
+    async def startup_event():
+        """Initialize background tasks"""
+        logger.info("🚀 FastAPI startup event called!")
+        
+        async def process_websocket_broadcasts():
+            """Process broadcast requests from the broadcast queue"""
+            logger.info("📥 Broadcast processor starting...")
+            
+            while not shutdown_event.is_set():
+                try:
+                    # Check for broadcast requests in the broadcast queue (non-blocking)
+                    try:
+                        message = broadcast_queue.get_nowait()
+                        logger.info(f"📥 FastAPI process received broadcast message: {message}")
+                        
+                        if isinstance(message, dict) and message.get("type") == "websocket_broadcast":
+                            # Handle broadcast request directly
+                            data = message.get("data", {})
+                            qa_id = data.get("qa_id")
+                            element_id = data.get("element_id")
+                            property_name = data.get("property_name")
+                            value = data.get("value")
+                            
+                            logger.info(f"🔄 Processing WebSocket broadcast: QA {qa_id}, {element_id}.{property_name} = {value}")
+                            
+                            if hasattr(app.state, 'broadcast_to_websockets'):
+                                await app.state.broadcast_to_websockets(qa_id, element_id, property_name, value)
+                                logger.info(f"✅ Broadcast sent to WebSocket clients: QA {qa_id}, {element_id}.{property_name} = {value}")
+                            else:
+                                logger.warning("🔍 broadcast_to_websockets function not found in app.state")
+                            
+                    except queue.Empty:
+                        pass
+                        
+                except Exception as e:
+                    logger.debug(f"Error processing broadcast request: {e}")
+                
+                # Small delay to avoid busy waiting, but check shutdown frequently
+                try:
+                    await asyncio.wait_for(shutdown_event.wait(), timeout=0.01)
+                    break  # Shutdown signal received
+                except asyncio.TimeoutError:
+                    pass  # Continue processing
+            
+            logger.info("📥 Broadcast processor stopping...")
+        
+        # Start the broadcast processor
+        logger.info("🔄 Starting broadcast processor task...")
+        asyncio.create_task(process_websocket_broadcasts())
+        logger.info("🔄 Queue broadcast processor started")
+    
+    @app.on_event("shutdown")
+    async def shutdown_event_handler():
+        """Signal background tasks to shutdown"""
+        logger.info("🛑 FastAPI shutdown event called!")
+        shutdown_event.set()
+        logger.info("🛑 Shutdown signal sent to background tasks")
+    
     return app
 
 
-def run_fastapi_server(request_queue: multiprocessing.Queue, response_queue: multiprocessing.Queue, config: Dict[str, Any]):
+def run_fastapi_server(request_queue: multiprocessing.Queue, response_queue: multiprocessing.Queue, broadcast_queue: multiprocessing.Queue, config: Dict[str, Any]):
     """Run the FastAPI server in a separate process"""
     # Set up logging for the server process
     logging.basicConfig(
@@ -238,7 +423,7 @@ def run_fastapi_server(request_queue: multiprocessing.Queue, response_queue: mul
     
     try:
         # Create the FastAPI app
-        app = create_fastapi_app(request_queue, response_queue, config)
+        app = create_fastapi_app(request_queue, response_queue, broadcast_queue, config)
         
         # Run with uvicorn
         uvicorn.run(
@@ -267,6 +452,7 @@ class FastAPIProcessManager:
         # IPC queues
         self.request_queue = multiprocessing.Queue()
         self.response_queue = multiprocessing.Queue()
+        self.broadcast_queue = multiprocessing.Queue()  # Separate queue for WebSocket broadcasts
         
         # Process management
         self.server_process: Optional[multiprocessing.Process] = None
@@ -275,6 +461,7 @@ class FastAPIProcessManager:
         # Callbacks
         self.lua_executor: Optional[callable] = None
         self.fibaro_callback: Optional[callable] = None
+        self.quickapp_callback: Optional[callable] = None
         
     def set_lua_executor(self, executor: callable):
         """Set the Lua code executor function"""
@@ -285,6 +472,11 @@ class FastAPIProcessManager:
         """Set the Fibaro API callback function"""
         self.fibaro_callback = callback
         logger.info("Fibaro API callback set for FastAPI process")
+        
+    def set_quickapp_callback(self, callback: callable):
+        """Set the QuickApp data callback function"""
+        self.quickapp_callback = callback
+        logger.info("QuickApp callback set for FastAPI process")
         
     def start(self):
         """Start the FastAPI server process"""
@@ -297,7 +489,7 @@ class FastAPIProcessManager:
         # Start the server process
         self.server_process = multiprocessing.Process(
             target=run_fastapi_server,
-            args=(self.request_queue, self.response_queue, self.config),
+            args=(self.request_queue, self.response_queue, self.broadcast_queue, self.config),
             daemon=True
         )
         self.server_process.start()
@@ -386,6 +578,44 @@ class FastAPIProcessManager:
                     except Exception as e:
                         response_data = {"success": False, "error": str(e), "status_code": 500}
                         
+                elif message.type == "quickapp_info":
+                    # Get specific QuickApp info
+                    data = message.data
+                    qa_id = data.get("qa_id")
+                    logger.info(f"🔧 IPC QuickApp info request: QA {qa_id}")
+                    try:
+                        if self.quickapp_callback:
+                            logger.info(f"🔧 Calling quickapp_callback for QA {qa_id}")
+                            qa_info = self.quickapp_callback("get_quickapp", qa_id)
+                            if qa_info:
+                                logger.info(f"🔧 QuickApp info found: {qa_info}")
+                                response_data = {"success": True, "data": qa_info}
+                            else:
+                                logger.warning(f"🔧 QuickApp {qa_id} not found")
+                                response_data = {"success": False, "error": f"QuickApp {qa_id} not found"}
+                        else:
+                            logger.error("🔧 QuickApp callback not set!")
+                            response_data = {"success": False, "error": "QuickApp callback not set"}
+                    except Exception as e:
+                        logger.error(f"🔧 QuickApp callback error: {e}")
+                        response_data = {"success": False, "error": str(e)}
+                        
+                elif message.type == "all_quickapps_info":
+                    # Get all QuickApps info
+                    logger.info("🔧 IPC All QuickApps info request")
+                    try:
+                        if self.quickapp_callback:
+                            logger.info("🔧 Calling quickapp_callback for all QAs")
+                            all_qas = self.quickapp_callback("get_all_quickapps")
+                            logger.info(f"🔧 All QuickApps found: {all_qas}")
+                            response_data = {"success": True, "data": all_qas}
+                        else:
+                            logger.error("🔧 QuickApp callback not set!")
+                            response_data = {"success": False, "error": "QuickApp callback not set"}
+                    except Exception as e:
+                        logger.error(f"🔧 QuickApp callback error: {e}")
+                        response_data = {"success": False, "error": str(e)}
+                        
                 else:
                     response_data = {"success": False, "error": "Unknown message type or no handler"}
                 
@@ -405,6 +635,37 @@ class FastAPIProcessManager:
                 logger.error(f"IPC message handling error: {e}")
                 
         logger.info("IPC message handler stopped")
+        
+    def broadcast_view_update(self, qa_id: int, element_id: str, property_name: str, value: Any) -> bool:
+        """Send a WebSocket broadcast request via IPC"""
+        try:
+            print(f"📡 APIManager.broadcast_view_update called: QA {qa_id}, {element_id}.{property_name} = {value}")
+            
+            if not self.is_running():
+                print("⚠️ FastAPI process not running")
+                return False
+                
+            # Queue the WebSocket broadcast request
+            broadcast_data = {
+                "id": str(uuid.uuid4()),
+                "type": "websocket_broadcast",
+                "data": {
+                    "type": "websocket_broadcast",
+                    "qa_id": qa_id,
+                    "element_id": element_id,
+                    "property_name": property_name,
+                    "value": value
+                },
+                "timestamp": time.time()
+            }
+            
+            self.broadcast_queue.put(broadcast_data)
+            print(f"✅ Successfully queued WebSocket broadcast: QA {qa_id}, element {element_id}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error queuing WebSocket broadcast: {e}")
+            return False
         
     def is_running(self) -> bool:
         """Check if the FastAPI process is running"""

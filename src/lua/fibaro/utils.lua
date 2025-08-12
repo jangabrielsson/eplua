@@ -53,6 +53,10 @@ function string.split(inputstr, sep)
   return t
 end
 
+if not table.maxn then
+  function table.maxn(t) local c=0 for _ in pairs(t) do c=c+1 end return c end
+end
+
 getmetatable("").__idiv = function(str,len) return (#str < len or #str < 4) and str or str:sub(1,len-2)..".." end -- truncate strings
 
 local function readFile(fname,silent)

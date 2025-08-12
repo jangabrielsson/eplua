@@ -473,74 +473,19 @@
                 this.updateStatus('Loading QuickApp...');
                 
                 try {
-                    // Get the real QuickApp definition from the Lua runtime with proper serialization
-                    const response = await fetch(`${this.apiBase}/plua/execute`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            code: `
-                                local qa = _PY.get_quickapp(${this.qaId})
-                                if qa then
-                                    -- Clean the data to remove functions and make it JSON serializable
-                                    local cleanQA = {
-                                        device = {},
-                                        UI = {}
-                                    }
-                                    
-                                    -- Copy device info safely
-                                    if qa.device then
-                                        for k, v in pairs(qa.device) do
-                                            if type(v) ~= "function" then
-                                                cleanQA.device[k] = v
-                                            end
-                                        end
-                                    end
-                                    
-                                    -- Copy UI structure safely
-                                    if qa.UI then
-                                        for i, row in ipairs(qa.UI) do
-                                            if type(row) == "table" then
-                                                if row.type then
-                                                    -- Single element
-                                                    local cleanElement = {}
-                                                    for k, v in pairs(row) do
-                                                        if type(v) ~= "function" then
-                                                            cleanElement[k] = v
-                                                        end
-                                                    end
-                                                    table.insert(cleanQA.UI, cleanElement)
-                                                else
-                                                    -- Array of elements
-                                                    local cleanRow = {}
-                                                    for j, element in ipairs(row) do
-                                                        local cleanElement = {}
-                                                        for k, v in pairs(element) do
-                                                            if type(v) ~= "function" then
-                                                                cleanElement[k] = v
-                                                            end
-                                                        end
-                                                        table.insert(cleanRow, cleanElement)
-                                                    end
-                                                    table.insert(cleanQA.UI, cleanRow)
-                                                end
-                                            end
-                                        end
-                                    end
-                                    
-                                    return json.encode(cleanQA)
-                                else
-                                    return nil
-                                end
-                            ` 
-                        })
+                    // Use the REST API endpoint to get QuickApp info directly
+                    const response = await fetch(`${this.apiBase}/plua/quickApp/${this.qaId}/info`, {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' }
                     });
                     
-                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
                     
-                    if (result.success && result.result) {
-                        // Parse the JSON string returned from Lua
-                        const quickAppData = JSON.parse(result.result);
-                        
+                    const quickAppData = await response.json();
+                    
+                    if (quickAppData && quickAppData.device) {
                         const quickApp = {
                             id: parseInt(this.qaId),
                             name: quickAppData.device?.name || `QuickApp ${this.qaId}`,
@@ -611,45 +556,28 @@
                 deviceContent.innerHTML = '<div class="loading">Loading device information...</div>';
                 
                 try {
-                    // Get device information from the API
-                    const response = await fetch(`${this.apiBase}/plua/execute`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            code: `
-                                local qa = _PY.get_quickapp(${this.qaId})
-                                if qa and qa.device then
-                                    local cleanDevice = {}
-                                    for k, v in pairs(qa.device) do
-                                        if type(v) ~= "function" then
-                                            cleanDevice[k] = v
-                                        end
-                                    end
-                                    return json.encode(cleanDevice)
-                                else
-                                    return json.encode({error = "Device not found"})
-                                end
-                            `
-                        })
+                    // Get device information from the REST API
+                    const response = await fetch(`${this.apiBase}/plua/quickApp/${this.qaId}/info`, {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' }
                     });
                     
-                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
                     
-                    if (data.success && data.result) {
-                        const deviceInfo = JSON.parse(data.result);
-                        if (deviceInfo.error) {
-                            deviceContent.innerHTML = `<div class="error">${deviceInfo.error}</div>`;
-                        } else {
-                            deviceContent.innerHTML = `
-                                <div class="device-info">
-                                    <h4>Device Information</h4>
-                                    <pre>${JSON.stringify(deviceInfo, null, 2)}</pre>
-                                </div>
-                            `;
-                            this.deviceInfoLoaded = true;
-                        }
+                    const quickAppData = await response.json();
+                    
+                    if (quickAppData && quickAppData.device) {
+                        deviceContent.innerHTML = `
+                            <div class="device-info">
+                                <h4>Device Information</h4>
+                                <pre>${JSON.stringify(quickAppData.device, null, 2)}</pre>
+                            </div>
+                        `;
+                        this.deviceInfoLoaded = true;
                     } else {
-                        deviceContent.innerHTML = '<div class="error">Failed to load device information</div>';
+                        deviceContent.innerHTML = '<div class="error">Device not found</div>';
                     }
                 } catch (error) {
                     deviceContent.innerHTML = `<div class="error">Error loading device info: ${error.message}</div>`;
@@ -1026,7 +954,7 @@
                 
                 // Handle granular view updates
                 if (message.type === 'view_update' && message.qa_id === parseInt(this.qaId)) {
-                    this.handleViewUpdate(message.element_id, message.property, message.value);
+                    this.handleViewUpdate(message.element_id, message.property_name, message.value);
                 }
                 
                 // Handle window control commands

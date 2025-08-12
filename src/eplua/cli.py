@@ -152,30 +152,129 @@ def run_engine(
                         
                         # Always set up Fibaro callback - hook will determine availability
                         def fibaro_callback(method: str, path: str, data: str = None):
-                            """Thread-safe Fibaro API callback - always calls the hook"""
+                            """Thread-safe Fibaro API callback - receives JSON string, passes to Lua"""
                             try:
-                                # Call Lua fibaro hook - always available in init.lua
-                                # Return both values in a table to capture them properly
-                                lua_code = f'local data, status = _PY.fibaroApiHook("{method}", "{path}", {data or "nil"}); return {{data=data, status=status}}'
-                                result = engine.execute_script_from_thread(lua_code, 30.0, is_json=False)
+                                print(f"🔧 fibaro_callback called: {method} {path} {data}")
                                 
-                                if result.get("success", False):
-                                    # Result should be a table with data and status
-                                    lua_result = result.get("result", {})
-                                    if isinstance(lua_result, dict):
-                                        hook_data = lua_result.get("data")
-                                        hook_status = lua_result.get("status", 200)
-                                        return hook_data, hook_status
+                                # Parse JSON data if provided
+                                data_obj = None
+                                if data:
+                                    try:
+                                        import json
+                                        data_obj = json.loads(data)
+                                    except json.JSONDecodeError:
+                                        print(f"🔧 Warning: Invalid JSON data: {data}")
+                                        data_obj = None
+                                
+                                # Use the existing thread-safe IPC mechanism correctly
+                                try:
+                                    # The key insight: pass data as JSON string to Lua and let Lua parse it
+                                    # This avoids all the syntax issues with embedding data in Lua code
+                                    
+                                    data_str = data if data else "nil"
+                                    
+                                    # Simple Lua script that calls the hook with string data
+                                    lua_script = f'''
+                                        local method = "{method}"
+                                        local path = "{path}"
+                                        local data_str = {repr(data_str)}
+                                        
+                                        local hook_data, hook_status = _PY.fibaroApiHook(method, path, data_str)
+                                        return {{data = hook_data, status = hook_status or 200}}
+                                    '''
+                                    
+                                    result = engine.execute_script_from_thread(lua_script, 30.0, is_json=False)
+                                    print(f"🔧 Thread execution result: {result}")
+                                    
+                                    if result.get("success", False):
+                                        lua_result = result.get("result", {})
+                                        if isinstance(lua_result, dict):
+                                            hook_data = lua_result.get("data")
+                                            hook_status = lua_result.get("status", 200)
+                                            print(f"🔧 Hook returned: {hook_data}, {hook_status}")
+                                            return hook_data, hook_status
+                                        else:
+                                            print(f"🔧 Fallback return: {lua_result}, 200")
+                                            return lua_result, 200
                                     else:
-                                        # Fallback for unexpected format
-                                        return lua_result, 200
-                                else:
-                                    return "Lua execution error", 500
+                                        print(f"🔧 Thread execution failed: {result.get('error')}")
+                                        return f"Thread execution error: {result.get('error')}", 500
+                                    
+                                except Exception as e:
+                                    print(f"🔧 Thread execution exception: {str(e)}")
+                                    return f"Thread execution error: {str(e)}", 500
                                     
                             except Exception as e:
+                                print(f"🔧 Callback exception: {str(e)}")
                                 return f"Callback error: {str(e)}", 500
                                 
                         api_manager.set_fibaro_callback(fibaro_callback)
+                        
+                        # QuickApp data callback
+                        def quickapp_callback(action: str, qa_id: int = None):
+                            """Handle QuickApp data requests"""
+                            try:
+                                if action == "get_quickapp" and qa_id is not None:
+                                    # Get specific QuickApp via Lua
+                                    lua_script = f'''
+                                        local qa_id = {qa_id}
+                                        
+                                        -- Try fibaro.plua first (this is the working path)
+                                        if fibaro and fibaro.plua and fibaro.plua.getQuickApp then
+                                            local qa_info = fibaro.plua:getQuickApp(qa_id)
+                                            if qa_info then
+                                                return json.encode(qa_info)
+                                            end
+                                        end
+                                        
+                                        -- Fallback to Emu if available
+                                        if Emu and Emu.getQuickApp then
+                                            local qa_info = Emu:getQuickApp(qa_id)
+                                            if qa_info then
+                                                return json.encode(qa_info)
+                                            end
+                                        end
+                                        
+                                        return "null"
+                                    '''
+                                    result = engine.execute_script_from_thread(lua_script, 30.0, is_json=False)
+                                    if result.get("success") and result.get("result") != "null":
+                                        import json
+                                        return json.loads(result.get("result", "null"))
+                                    return None
+                                    
+                                elif action == "get_all_quickapps":
+                                    # Get all QuickApps via Lua
+                                    lua_script = '''
+                                        -- Try fibaro.plua first (this is the working path)
+                                        if fibaro and fibaro.plua and fibaro.plua.getQuickApps then
+                                            local all_qas = fibaro.plua:getQuickApps()
+                                            return json.encode(all_qas)
+                                        end
+                                        
+                                        -- Fallback to Emu if available
+                                        if Emu and Emu.getQuickApps then
+                                            local all_qas = Emu:getQuickApps()
+                                            return json.encode(all_qas)
+                                        end
+                                        
+                                        return "[]"
+                                    '''
+                                    result = engine.execute_script_from_thread(lua_script, 30.0, is_json=False)
+                                    if result.get("success"):
+                                        import json
+                                        return json.loads(result.get("result", "[]"))
+                                    return []
+                                else:
+                                    return None
+                            except Exception as e:
+                                print(f"🔧 QuickApp callback error: {e}")
+                                return None
+                                
+                        api_manager.set_quickapp_callback(quickapp_callback)
+                        
+                        # Store reference to api_manager for WebSocket broadcasting
+                        engine._api_manager = api_manager
                             
                         safe_print(f"🌐 FastAPI server process started at http://{config.get('api_host')}:{config.get('api_port')}")
                         safe_print("📡 Using multi-process architecture for maximum stability")

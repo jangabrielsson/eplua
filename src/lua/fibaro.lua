@@ -25,7 +25,7 @@ end
 
 _PY.fibaroApiHook = function(method, path, data)
     _PY.mobdebug.on()
-    --print("fibaro_api_hook called with:", method, path, data)
+    --print("✅ fibaro.lua fibaroApiHook called with:", method, path, data)
     if Emu then 
         path = path:gsub("^/api", "")  -- Remove /api prefix for compatibility
         if data and type(data) == 'string' then

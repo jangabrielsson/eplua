@@ -8,7 +8,7 @@ import logging
 import importlib
 import importlib.util
 from typing import Dict, Any
-from .lua_bindings import export_to_lua, python_to_lua_table, lua_to_python_table, get_exported_functions
+from .lua_bindings import export_to_lua, python_to_lua_table, lua_to_python_table, get_exported_functions, get_global_engine
 
 # Import window manager for browser-based UI
 try:
@@ -303,6 +303,220 @@ def close_all_browser_windows() -> bool:
     except Exception as e:
         logging.error(f"Error closing all browser windows: {e}")
         return False
+
+
+# =============================================================================
+# QUICKAPP-SPECIFIC FUNCTIONS
+# Screen dimension, QuickApp window management, and WebSocket broadcasting
+# =============================================================================
+
+@export_to_lua("get_screen_dimensions")
+def get_screen_dimensions() -> Any:
+    """Get screen dimensions for window placement."""
+    try:
+        import platform
+        system = platform.system().lower()
+        
+        if system == "darwin":  # macOS
+            try:
+                import subprocess
+                result = subprocess.run([
+                    "system_profiler", "SPDisplaysDataType", "-json"
+                ], capture_output=True, text=True, check=True)
+                
+                import json
+                displays = json.loads(result.stdout)
+                
+                # Get primary display info
+                primary_display = displays.get("SPDisplaysDataType", [{}])[0]
+                resolution = primary_display.get("_spdisplays_resolution", "1920 x 1080")
+                width, height = resolution.split(" x ")
+                
+                return python_to_lua_table({
+                    "width": int(width),
+                    "height": int(height),
+                    "primary": True
+                })
+            except Exception:
+                # Fallback for macOS
+                return python_to_lua_table({"width": 1920, "height": 1080, "primary": True})
+                
+        elif system == "linux":
+            try:
+                import subprocess
+                result = subprocess.run([
+                    "xrandr", "--query"
+                ], capture_output=True, text=True, check=True)
+                
+                for line in result.stdout.split('\n'):
+                    if " connected primary " in line and " x " in line:
+                        parts = line.split()
+                        for part in parts:
+                            if "x" in part and part.replace("x", "").replace("+", "").replace("-", "").isdigit():
+                                resolution = part.split("+")[0]  # Remove position info
+                                width, height = resolution.split("x")
+                                return python_to_lua_table({
+                                    "width": int(width),
+                                    "height": int(height),
+                                    "primary": True
+                                })
+                # Fallback for Linux
+                return python_to_lua_table({"width": 1920, "height": 1080, "primary": True})
+            except Exception:
+                return python_to_lua_table({"width": 1920, "height": 1080, "primary": True})
+                
+        elif system == "windows":
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                width = user32.GetSystemMetrics(0)
+                height = user32.GetSystemMetrics(1)
+                
+                return python_to_lua_table({
+                    "width": width,
+                    "height": height,
+                    "primary": True
+                })
+            except Exception:
+                # Fallback for Windows
+                return python_to_lua_table({"width": 1920, "height": 1080, "primary": True})
+        else:
+            # Unknown system fallback
+            return python_to_lua_table({"width": 1920, "height": 1080, "primary": True})
+            
+    except Exception as e:
+        logging.error(f"Error getting screen dimensions: {e}")
+        return python_to_lua_table({"width": 1920, "height": 1080, "primary": True})
+
+
+@export_to_lua("open_quickapp_window")
+def open_quickapp_window(qa_id: int, title: str, width: int = 800, height: int = 600, 
+                        pos_x: int = 100, pos_y: int = 100) -> bool:
+    """
+    Open a QuickApp window using the /plua/quickApp/<id>/info endpoint.
+    
+    Args:
+        qa_id: QuickApp ID
+        title: Window title
+        width: Window width in pixels (default: 800)
+        height: Window height in pixels (default: 600)
+        pos_x: Window x position (default: 100)
+        pos_y: Window y position (default: 100)
+        
+    Returns:
+        True if window was created successfully, False otherwise
+    """
+    try:
+        # Get the engine to determine the web server port
+        engine = get_global_engine()
+        if not engine:
+            logging.error("EPLua engine not available for QuickApp window")
+            return False
+            
+        # Try to get the server port from the engine config
+        api_server = getattr(engine, 'api_server', None)
+        if api_server and hasattr(api_server, 'port'):
+            server_port = api_server.port
+        else:
+            # Fallback to default port used by FastAPI
+            server_port = 8080
+            
+        # Construct the URL for the QuickApp UI
+        base_url = f"http://localhost:{server_port}"
+        static_url = f"{base_url}/static/quickapp_ui.html?qa_id={qa_id}&desktop=true"
+        
+        # Use the existing window manager to create the browser window
+        window_id = f"quickapp_{qa_id}"
+        
+        success = window_manager.create_window(
+            window_id=window_id,
+            url=static_url,
+            width=width,
+            height=height,
+            x=pos_x,
+            y=pos_y
+        )
+        
+        if success:
+            logging.info(f"Created QuickApp window for QA {qa_id}: {title}")
+        else:
+            logging.error(f"Failed to create QuickApp window for QA {qa_id}")
+            
+        return success
+        
+    except Exception as e:
+        logging.error(f"Error opening QuickApp window for QA {qa_id}: {e}")
+        return False
+
+
+@export_to_lua("broadcast_view_update")
+def broadcast_view_update(qa_id: int, element_id: str, property_name: str, value: Any) -> bool:
+    """
+    Broadcast a view update to all connected WebSocket clients.
+    
+    Args:
+        qa_id: QuickApp ID
+        element_id: UI element ID that was updated
+        property_name: Property that changed (e.g., "text", "value")
+        value: The new value for the property
+        
+    Returns:
+        True if broadcast was successful, False otherwise
+    """
+    print(f"🔔 broadcast_view_update called: QA {qa_id}, {element_id}.{property_name} = {value}")
+    try:
+        # Get the engine
+        engine = get_global_engine()
+        if not engine:
+            logging.debug("EPLua engine not available for broadcast")
+            return True  # Don't fail, just skip broadcasting
+        
+        # Check if API manager is available (multi-process mode)
+        api_manager = getattr(engine, '_api_manager', None)
+        if api_manager:
+            # Use the API manager to send broadcast request to FastAPI process
+            try:
+                logging.info(f"🔄 Using API manager for broadcast: QA {qa_id}, {element_id}.{property_name} = {value}")
+                result = api_manager.broadcast_view_update(qa_id, element_id, property_name, value)
+                logging.info(f"📡 API manager broadcast result: {result}")
+                return result
+            except Exception as e:
+                logging.warning(f"API manager broadcast failed: {e}")
+                return True  # Don't fail QuickApp logic
+        
+        # Fallback: try direct API server access (single-process mode)
+        api_server = getattr(engine, 'api_server', None)
+        if api_server and hasattr(api_server, 'broadcast_view_update'):
+            try:
+                import asyncio
+                
+                async def do_broadcast():
+                    await api_server.broadcast_view_update(qa_id, element_id, property_name, value)
+                
+                # Try to run the async broadcast
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(do_broadcast())
+                    else:
+                        loop.run_until_complete(do_broadcast())
+                except RuntimeError:
+                    asyncio.run(do_broadcast())
+                
+                logging.debug(f"Direct WebSocket broadcast successful: QA {qa_id}, element {element_id}")
+                return True
+                
+            except Exception as e:
+                logging.debug(f"Direct broadcast failed: {e}")
+                return True  # Don't fail QuickApp logic
+        
+        # No broadcast mechanism available - log and continue
+        logging.debug(f"No WebSocket broadcast available, skipping: QA {qa_id}, element {element_id}")
+        return True
+        
+    except Exception as e:
+        logging.debug(f"Error in broadcast_view_update: {e}")
+        return True  # Don't fail the QuickApp logic due to broadcast issues
 
 
 

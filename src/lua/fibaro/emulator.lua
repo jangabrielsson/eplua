@@ -138,10 +138,12 @@ function Emulator:ERROR(...) self.lib.__fibaro_add_debug_message(__TAG, self.lib
 
 function Emulator:registerDevice(info)
   if info.device.id == nil then DEVICEID = DEVICEID + 1; info.device.id = DEVICEID end
+  self:DEBUG("Registering device with ID: " .. tostring(info.device.id))
   self.DIR[info.device.id] = { 
     device = info.device, files = info.files, env = info.env, headers = info.headers,
     UI = info.UI, UImap = info.UImap, watches = info.watches,
   }
+  self:DEBUG("Device registered. Total devices in DIR: " .. table.maxn(self.DIR))
 end
 
 local tileX, tileY = 20,20
@@ -151,25 +153,44 @@ function Emulator:registerQAGlobally(qa) -- QuickApp object (mother or child)
   local openWindow -- = _PY.config.runtime_config and _PY.config.runtime_config.desktop
   if openWindow == nil then openWindow = info.headers and info.headers.desktop end
   if openWindow then
-    --local dim = self.lib.getScreenDimension()
-    -- local a = self.lib.createQuickAppWindow(qa.id, "Auto-opened Desktop Window", 400, 400, tileX, tileY)
-    tileX = tileX + 400 + 10
+    local dim = self.lib.getScreenDimension()
+    local success = self.lib.createQuickAppWindow(qa.id, "Auto-opened Desktop Window", 400, 400, tileX, tileY)
+    if success then
+      tileX = tileX + 400 + 10
+    end
   end
 end
 
 function Emulator:getQuickApps()
   local quickApps = {}
+  self:DEBUG("Getting QuickApps, DIR contents:")
   for id, info in pairs(self.DIR) do
+    self:DEBUG("  ID: " .. tostring(id) .. ", has UI: " .. tostring(info.UI ~= nil))
     if info.UI then
       quickApps[#quickApps + 1] = { UI = info.UI, device = info.device }
     end
   end
+  self:DEBUG("Returning " .. #quickApps .. " QuickApps")
   return quickApps
 end
 
 function Emulator:getQuickApp(id)
+  id = tonumber(id)
+  self:DEBUG("Looking for QuickApp with ID: " .. tostring(id))
   local info = self.DIR[id or ""]
-  if info then return { UI = info.UI, device = info.device } end
+  if info then 
+    self:DEBUG("Found QuickApp with ID " .. tostring(id))
+    return { UI = info.UI, device = info.device }
+  else
+    self:DEBUG("QuickApp with ID " .. tostring(id) .. " not found in DIR")
+    -- List available IDs for debugging
+    local available = {}
+    for did, _ in pairs(self.DIR) do
+      available[#available + 1] = tostring(did)
+    end
+    self:DEBUG("Available IDs: " .. table.concat(available, ", "))
+    return nil
+  end
 end
 
 function Emulator:saveState() end
@@ -515,20 +536,39 @@ function viewProps.selectedItems(elm,data) elm.values = data.newValue end
 function viewProps.selectedItem(elm,data) elm.value = data.newValue end
 
 function Emulator:updateView(id,data,noUpdate)
+  print("🔍 DEBUG: updateView called with:")
+  print("  id:", id)
+  print("  data:", json.encodeFast(data))
+  print("  noUpdate:", noUpdate)
+  
   local info = self.DIR[id]
   local elm = info.UImap[data.componentName or ""]
   if elm then
+    print("  Found UI element:", data.componentName)
     if viewProps[data.propertyName] then
+      print("  Updating property:", data.propertyName, "to:", data.newValue)
       viewProps[data.propertyName](elm,data)
       --print("broadcast_ui_update",data.componentName)
       if not noUpdate then 
         -- Send granular UI update with specific element data (if function available)
+        print("  🔄 Calling _PY.broadcast_view_update...")
         if _PY.broadcast_view_update then
-          _PY.broadcast_view_update(id, data.componentName, data.propertyName, data.newValue)
+          local success = _PY.broadcast_view_update(id, data.componentName, data.propertyName, data.newValue)
+          print("  📡 Broadcast result:", success)
+        else
+          print("  ❌ _PY.broadcast_view_update not available")
         end
+      else
+        print("  ⏭️  Skipping broadcast (noUpdate=true)")
       end
     else
       self:DEBUG("Unknown view property: " .. data.propertyName)
+    end
+  else
+    print("  ❌ UI element not found:", data.componentName)
+    print("  Available elements:")
+    for name, _ in pairs(info.UImap or {}) do
+      print("    -", name)
     end
   end
 end
@@ -601,7 +641,7 @@ end
 
 function Emulator:getRefreshStates(last) return _PY.getEvents(last) end
 
-function Emulator:refreshEvent(typ,data) _PY.addEvent(json.encode({type=typ,data=data})) end
+function Emulator:refreshEvent(typ,data) _PY.add_event(json.encode({type=typ,data=data})) end
 
 local headerKeys = {}
 function headerKeys.name(str,info) info.name = str end
