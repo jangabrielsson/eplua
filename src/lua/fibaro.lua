@@ -23,7 +23,7 @@ function _PY.mainLuaFile(filename)
 end
 
 
-_PY.fibaro_api_hook = function(method, path, data)
+_PY.fibaroApiHook = function(method, path, data)
     _PY.mobdebug.on()
     --print("fibaro_api_hook called with:", method, path, data)
     if Emu then 
@@ -39,12 +39,18 @@ _PY.fibaro_api_hook = function(method, path, data)
     end
 end
 
--- _PY.fibaro_info = function()
---     if not Emu then return {} end
---     local info = {
---        HelperId = Emu.config.helperConnected,
---        HC3 = Emu.config.hc3_url,
---        User = Emu.config.hc3_user
---     }
---     return info
--- end
+_PY.getQuickapps = function()
+    if not Emu then
+        print("Emulator not initialized. Please call _PY.main_file_hook first.")
+        return nil, 503
+    end
+    return Emu:getQuickApps()
+end
+
+_PY.getQuickapp = function(id)
+    if not Emu then
+        print("Emulator not initialized. Please call _PY.main_file_hook first.")
+        return nil, 503
+    end
+    return Emu:getQuickApp(id)
+end

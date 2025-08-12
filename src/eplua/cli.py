@@ -232,6 +232,12 @@ def run_engine(
 
             except KeyboardInterrupt:
                 safe_print("🛑 Interrupted by user")
+                # Force clean exit without asyncio traceback
+                import os
+                import sys
+                sys.stdout.flush()
+                sys.stderr.flush()
+                os._exit(0)
             except Exception as e:
                 safe_print(f"❌ Engine error: {e}", f"[ERROR] Engine error: {e}")
             finally:
@@ -243,7 +249,16 @@ def run_engine(
                     pass
 
         # Run the async engine
-        asyncio.run(engine_main())
+        try:
+            asyncio.run(engine_main())
+        except KeyboardInterrupt:
+            safe_print("🛑 Interrupted by user")
+            # Force clean exit without asyncio traceback
+            import os
+            import sys
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os._exit(0)
 
     except ImportError as e:
         safe_print(f"❌ Import error: {e}", f"[ERROR] Import error: {e}")
@@ -323,6 +338,10 @@ def run_interactive_repl():
 
 def main():
     """Main CLI entry point"""
+    # Suppress multiprocessing resource tracker warnings
+    import os
+    os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"
+    
     parser = argparse.ArgumentParser(
         description="EPLua - Python Lua Engine with Web UI"
     )

@@ -7,30 +7,31 @@ import json
 import logging
 import importlib
 import importlib.util
-from pathlib import Path
 from typing import Dict, Any
 from .lua_bindings import export_to_lua, python_to_lua_table, lua_to_python_table, get_exported_functions
 
-# GUI modules removed - now using web UI approach
-GUI_AVAILABLE = False
-NATIVE_UI_AVAILABLE = False
-logging.info("Native GUI disabled - using web UI approach")
+# Import window manager for browser-based UI
+try:
+    from . import window_manager
+    logging.info("Window manager loaded successfully")
+except ImportError as e:
+    logging.warning(f"Window manager not available: {e}")
 
 # Import remaining extension modules (FFI libraries are now in pylib/)
 # Use try/except to make imports safer
 try:
-    from . import web_server
+    from . import web_server  # noqa: F401
 except ImportError as e:
     logging.debug(f"web_server not available: {e}")
 
 try:
-    from . import sync_socket
+    from . import sync_socket  # noqa: F401
 except ImportError as e:
     logging.debug(f"sync_socket not available: {e}")
 
 # Import pylib to register FFI libraries
 try:
-    import pylib
+    import pylib  # noqa: F401
     logging.info("PyLib FFI libraries loaded successfully")
 except ImportError as e:
     logging.warning(f"PyLib not available: {e}")
@@ -64,7 +65,7 @@ def load_python_module(module_name: str) -> Dict[str, Any]:
         logging.info(f"Loading Python module: {module_name}")
 
         # Store current exported functions count
-        before_count = len(get_exported_functions())
+        before_count = len(get_exported_functions())  # noqa: F841
 
         module = None
         full_module_name = None
@@ -103,7 +104,7 @@ def load_python_module(module_name: str) -> Dict[str, Any]:
 
         # Get all exported functions after import
         all_exported = get_exported_functions()
-        after_count = len(all_exported)
+        after_count = len(all_exported)  # noqa: F841
 
         # Find functions that were added by this module
         # (This is a simple heuristic - in practice, modules should prefix their functions)
@@ -125,25 +126,6 @@ def load_python_module(module_name: str) -> Dict[str, Any]:
             new_functions = all_exported
 
         logging.info(f"Module {full_module_name} loaded successfully. "
-                     f"Available functions: {list(new_functions.keys())}")
-
-        return python_to_lua_table(new_functions)
-        if hasattr(module, '__name__'):
-            # Look for functions that might belong to this module
-            module_prefix = module.__name__.split('.')[-1]  # e.g., "filesystem" from "eplua.filesystem"
-            for name, func in all_exported.items():
-                # Include functions that start with module prefix or are likely from this module
-                if (name.startswith(module_prefix.replace('_', '')) or
-                    name.startswith(f"{module_prefix}_") or
-                    hasattr(func, '__module__') and module.__name__ in str(func.__module__)):
-                    new_functions[name] = func
-
-        # If we can't determine which functions are new, return all functions
-        # This is safer and mimics the behavior of loading all available functions
-        if not new_functions:
-            new_functions = all_exported
-
-        logging.info(f"Module {module_name} loaded successfully. "
                      f"Available functions: {list(new_functions.keys())}")
 
         return python_to_lua_table(new_functions)
@@ -247,113 +229,82 @@ def set_env(var_name: str, value: str) -> bool:
         return False
 
 
-# GUI Function Exports - Now using Web UI approach
-# Provide stubs for compatibility until web UI is implemented
-@export_to_lua("gui_available")
-def gui_available() -> bool:
-    """Check if GUI is available."""
-    return False
-
-@export_to_lua("html_rendering_available")
-def html_rendering_available() -> bool:
-    """Check if HTML rendering is available."""
-    return False
+# =============================================================================
+# BROWSER WINDOW MANAGEMENT
+# External browser-based UI system replacing old Tkinter GUI
+# =============================================================================
 
 @export_to_lua("get_html_engine")
 def get_html_engine() -> str:
     """Get the name of the HTML rendering engine."""
-    return "web"
-
-@export_to_lua("create_window")
-def create_window(title: str, width: int = 800, height: int = 600) -> str:
-    """Create a new window."""
-    return "ERROR: Web UI not yet implemented"
-
-@export_to_lua("set_window_html")
-def set_window_html(window_id: str, html_content: str) -> str:
-    """Set HTML content for a window."""
-    return "ERROR: Web UI not yet implemented"
-
-@export_to_lua("set_window_url")
-def set_window_url(window_id: str, url: str) -> str:
-    """Load a URL in a window."""
-    return "ERROR: Web UI not yet implemented"
-
-@export_to_lua("show_window")
-def show_window(window_id: str) -> str:
-    """Show a window."""
-    return "ERROR: Web UI not yet implemented"
-
-@export_to_lua("hide_window")
-def hide_window(window_id: str) -> str:
-    """Hide a window."""
-    return "ERROR: Web UI not yet implemented"
-
-@export_to_lua("close_window")
-def close_window(window_id: str) -> str:
-    """Close and destroy a window."""
-    return "ERROR: Web UI not yet implemented"
-
-@export_to_lua("list_windows")
-def list_windows() -> str:
-    """List all open windows."""
-    return "ERROR: Web UI not yet implemented"
-
-@export_to_lua("show_gui")
-def show_gui() -> str:
-    """Show GUI - backwards compatibility function."""
-    return "ERROR: Web UI not yet implemented"
+    return "browser"
 
 
-# Native UI Functions - Now using Web UI approach
-# Provide stubs for compatibility until web UI is implemented
+# Primary Browser Window Functions
+@export_to_lua("create_browser_window")
+def create_browser_window(window_id: str, url: str, width: int = 800, height: int = 600,
+                          x: int = 100, y: int = 100) -> bool:
+    """Create a new browser window with full control over position and size."""
+    try:
+        return window_manager.create_window(window_id, url, width, height, x, y)
+    except Exception as e:
+        logging.error(f"Error creating browser window: {e}")
+        return False
 
-@export_to_lua("createNativeWindow")
-def create_native_window(title: str, width: int = 800, height: int = 600) -> Dict[str, Any]:
-    """Create a new window."""
-    return {"error": "Web UI not yet implemented"}
 
-@export_to_lua("setNativeUI")
-def set_native_ui(window_id: str, ui_description) -> bool:
-    """Set UI description for a window."""
-    return False
+@export_to_lua("close_browser_window")
+def close_browser_window(window_id: str) -> bool:
+    """Close a browser window."""
+    try:
+        return window_manager.close_window(window_id)
+    except Exception as e:
+        logging.error(f"Error closing browser window: {e}")
+        return False
 
-@export_to_lua("setNativeCallback")
-def set_native_callback(window_id: str, element_id: str, callback_func) -> bool:
-    """Set callback for a UI element."""
-    return False
 
-@export_to_lua("getNativeValue")
-def get_native_value(window_id: str, element_id: str):
-    """Get value of a UI element."""
-    return None
+@export_to_lua("set_browser_window_url")
+def set_browser_window_url(window_id: str, url: str) -> bool:
+    """Set the URL of a browser window."""
+    try:
+        return window_manager.set_window_url(window_id, url)
+    except Exception as e:
+        logging.error(f"Error setting browser window URL: {e}")
+        return False
 
-@export_to_lua("setNativeValue")
-def set_native_value(window_id: str, element_id: str, value) -> bool:
-    """Set value of a UI element."""
-    return False
 
-@export_to_lua("showNativeWindow")
-def show_native_window(window_id: str) -> bool:
-    """Show a window."""
-    return False
+@export_to_lua("get_browser_window_info")
+def get_browser_window_info(window_id: str) -> Any:
+    """Get information about a browser window."""
+    try:
+        info = window_manager.get_window_info(window_id)
+        return python_to_lua_table(info) if info else None
+    except Exception as e:
+        logging.error(f"Error getting browser window info: {e}")
+        return None
 
-@export_to_lua("hideNativeWindow")
-def hide_native_window(window_id: str) -> bool:
-    """Hide a window."""
-    return False
 
-@export_to_lua("closeNativeWindow")
-def close_native_window(window_id: str) -> bool:
-    """Close a window."""
-    return False
+@export_to_lua("list_browser_windows")
+def list_browser_windows() -> Any:
+    """List all browser windows."""
+    try:
+        windows = window_manager.list_windows()
+        return python_to_lua_table(windows)
+    except Exception as e:
+        logging.error(f"Error listing browser windows: {e}")
+        return python_to_lua_table({"error": str(e)})
 
-@export_to_lua("listNativeWindows")
-def list_native_windows() -> str:
-    """List all windows."""
-    return "ERROR: Web UI not yet implemented"
 
-@export_to_lua("isNativeUIAvailable")
-def is_native_ui_available() -> bool:
-    """Check if UI is available."""
-    return False
+@export_to_lua("close_all_browser_windows")
+def close_all_browser_windows() -> bool:
+    """Close all browser windows."""
+    try:
+        window_manager.close_all_windows()
+        return True
+    except Exception as e:
+        logging.error(f"Error closing all browser windows: {e}")
+        return False
+
+
+
+
+
