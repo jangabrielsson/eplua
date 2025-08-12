@@ -536,30 +536,30 @@ function viewProps.selectedItems(elm,data) elm.values = data.newValue end
 function viewProps.selectedItem(elm,data) elm.value = data.newValue end
 
 function Emulator:updateView(id,data,noUpdate)
-  print("🔍 DEBUG: updateView called with:")
-  print("  id:", id)
-  print("  data:", json.encodeFast(data))
-  print("  noUpdate:", noUpdate)
+  -- print("🔍 DEBUG: updateView called with:")
+  -- print("  id:", id)
+  -- print("  data:", json.encodeFast(data))
+  -- print("  noUpdate:", noUpdate)
   
   local info = self.DIR[id]
   local elm = info.UImap[data.componentName or ""]
   if elm then
-    print("  Found UI element:", data.componentName)
+    --print("  Found UI element:", data.componentName)
     if viewProps[data.propertyName] then
-      print("  Updating property:", data.propertyName, "to:", data.newValue)
+      --print("  Updating property:", data.propertyName, "to:", data.newValue)
       viewProps[data.propertyName](elm,data)
       --print("broadcast_ui_update",data.componentName)
       if not noUpdate then 
         -- Send granular UI update with specific element data (if function available)
-        print("  🔄 Calling _PY.broadcast_view_update...")
+        --print("  🔄 Calling _PY.broadcast_view_update...")
         if _PY.broadcast_view_update then
           local success = _PY.broadcast_view_update(id, data.componentName, data.propertyName, data.newValue)
-          print("  📡 Broadcast result:", success)
+          --print("  📡 Broadcast result:", success)
         else
-          print("  ❌ _PY.broadcast_view_update not available")
+          --print("  ❌ _PY.broadcast_view_update not available")
         end
       else
-        print("  ⏭️  Skipping broadcast (noUpdate=true)")
+        --print("  ⏭️  Skipping broadcast (noUpdate=true)")
       end
     else
       self:DEBUG("Unknown view property: " .. data.propertyName)

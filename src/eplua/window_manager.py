@@ -148,26 +148,39 @@ class WindowManager:
         """
         logger.debug(f"Creating window {window_id} for URL: {url}")
         
-        # Check if we already have a window with the same URL
+        # Check if we already have a window with the same window_id
+        if window_id in self.windows:
+            existing_window = self.windows[window_id]
+            # Check if the existing window is still open and has the same URL
+            if self._is_window_still_open(existing_window):
+                if existing_window.url == url:
+                    logger.debug(f"Reusing existing window {window_id} (same URL)")
+                    return True
+                else:
+                    logger.info(f"Existing window {window_id} has different URL, updating")
+                    # Update the URL in the existing window (refresh)
+                    existing_window.url = url
+                    # Optionally refresh the browser window here
+                    return True
+            else:
+                logger.debug(f"Existing window {window_id} no longer open, will create new one")
+                # Remove the stale window reference
+                self._remove_window_reference(existing_window)
+        
+        # Check if we already have a window with the same URL (different window_id)
         existing_window = self._find_window_by_url(url)
-        if existing_window:
+        if existing_window and existing_window.window_id != window_id:
             # Verify the window is still actually open by trying to check if the browser process exists
             if self._is_window_still_open(existing_window):
                 logger.info(f"Reusing existing window {existing_window.window_id} for URL: {url}")
                 # Update the window_id mapping to point to the existing window
-                if window_id != existing_window.window_id:
-                    self.windows[window_id] = existing_window
+                self.windows[window_id] = existing_window
                 self._save_window_state()
                 return True
             else:
-                logger.info(f"Existing window {existing_window.window_id} no longer open, creating new one")
+                logger.debug(f"Existing window {existing_window.window_id} no longer open, creating new one")
                 # Remove the stale window reference
                 self._remove_window_reference(existing_window)
-            
-        # Only close existing window if we're not reusing by URL
-        if window_id in self.windows:
-            logger.warning(f"Window {window_id} already exists, closing existing window")
-            self.close_window(window_id)
             
         window = BrowserWindow(window_id, url, width, height, x, y)
         window.created_in_session = True  # Mark as created in current session

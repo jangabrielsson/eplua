@@ -14,8 +14,12 @@ import argparse
 import io
 import os
 import subprocess
+import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 # Fix Windows Unicode output issues
@@ -44,9 +48,44 @@ def setup_unicode_output():
 setup_unicode_output()
 
 
+def display_startup_greeting(config: Dict[str, Any]):
+    """Display a proper startup greeting with version information"""
+    import sys
+    try:
+        import lupa
+        lua_runtime = lupa.LuaRuntime()
+        lua_version = lua_runtime.execute("return _VERSION")
+        if lua_version:
+            lua_version = lua_version.replace("Lua ", "")
+        else:
+            lua_version = "Unknown"
+    except Exception:
+        lua_version = "Unknown"
+    
+    api_port = config.get("api_port", 8080)
+    telnet_port = config.get("telnet_port", 8023)
+    eplua_version = "0.1.0"  # From pyproject.toml
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    
+    # Use print for startup greeting so it's always visible
+    print(f"🚀 EPLua version {eplua_version}")
+    print(f"Python version {python_version}") 
+    print(f"Lua version {lua_version}")
+    print(f"API port {api_port}")
+    print(f"Telnet port {telnet_port}")
+
+
 def safe_print(message, fallback_message=None):
     """Print with Unicode support, fallback to ASCII if needed"""
     try:
+        # Try to use logger if available, otherwise fall back to print
+        try:
+            logger.info(message)
+            return
+        except NameError:
+            # Logger not available yet, use print
+            pass
+        
         print(message)
     except UnicodeEncodeError:
         if fallback_message:
@@ -56,7 +95,10 @@ def safe_print(message, fallback_message=None):
             ascii_message = (
                 message.encode("ascii", errors="replace").decode("ascii")
             )
-        print(ascii_message)
+        try:
+            logger.info(ascii_message)
+        except NameError:
+            print(ascii_message)
 
 
 def get_config():
@@ -103,6 +145,10 @@ def run_engine(
                 # Start Lua environment and bindings
                 await engine.start()
                 
+                # Start telnet server for REPL access
+                telnet_port = config.get("telnet_port", 8023)
+                await engine.run_script(f'_PY.start_telnet_server({telnet_port})', "telnet_server_start")
+                
                 # Start FastAPI server process if enabled
                 if config.get("api_enabled", True):
                     try:
@@ -121,11 +167,10 @@ def run_engine(
                                 pids = result.stdout.strip().split('\n')
                                 for pid in pids:
                                     if pid:
-                                        safe_print(f"🔧 Killing existing process {pid} using port {api_port}")
                                         subprocess.run(["kill", "-9", pid], check=False)
                         except Exception as e:
                             # Port cleanup failed, but continue anyway
-                            safe_print(f"⚠️ Port cleanup failed: {e}")
+                            logger.warning(f"Port cleanup failed: {e}")
                         
                         from eplua.fastapi_process import start_fastapi_process
                         
@@ -154,7 +199,7 @@ def run_engine(
                         def fibaro_callback(method: str, path: str, data: str = None):
                             """Thread-safe Fibaro API callback - receives JSON string, passes to Lua"""
                             try:
-                                print(f"🔧 fibaro_callback called: {method} {path} {data}")
+                                logger.debug(f"Fibaro callback: {method} {path}")
                                 
                                 # Parse JSON data if provided
                                 data_obj = None
@@ -163,7 +208,7 @@ def run_engine(
                                         import json
                                         data_obj = json.loads(data)
                                     except json.JSONDecodeError:
-                                        print(f"🔧 Warning: Invalid JSON data: {data}")
+                                        logger.warning(f"Invalid JSON data: {data}")
                                         data_obj = None
                                 
                                 # Use the existing thread-safe IPC mechanism correctly
@@ -184,28 +229,28 @@ def run_engine(
                                     '''
                                     
                                     result = engine.execute_script_from_thread(lua_script, 30.0, is_json=False)
-                                    print(f"🔧 Thread execution result: {result}")
+                                    logger.debug(f"Thread execution result: {result}")
                                     
                                     if result.get("success", False):
                                         lua_result = result.get("result", {})
                                         if isinstance(lua_result, dict):
                                             hook_data = lua_result.get("data")
                                             hook_status = lua_result.get("status", 200)
-                                            print(f"🔧 Hook returned: {hook_data}, {hook_status}")
+                                            logger.debug(f"Hook returned: {hook_data}, {hook_status}")
                                             return hook_data, hook_status
                                         else:
-                                            print(f"🔧 Fallback return: {lua_result}, 200")
+                                            logger.debug(f"Fallback return: {lua_result}, 200")
                                             return lua_result, 200
                                     else:
-                                        print(f"🔧 Thread execution failed: {result.get('error')}")
+                                        logger.error(f"Thread execution failed: {result.get('error')}")
                                         return f"Thread execution error: {result.get('error')}", 500
                                     
                                 except Exception as e:
-                                    print(f"🔧 Thread execution exception: {str(e)}")
+                                    logger.error(f"Thread execution exception: {str(e)}")
                                     return f"Thread execution error: {str(e)}", 500
                                     
                             except Exception as e:
-                                print(f"🔧 Callback exception: {str(e)}")
+                                logger.error(f"Callback exception: {str(e)}")
                                 return f"Callback error: {str(e)}", 500
                                 
                         api_manager.set_fibaro_callback(fibaro_callback)
@@ -268,7 +313,7 @@ def run_engine(
                                 else:
                                     return None
                             except Exception as e:
-                                print(f"🔧 QuickApp callback error: {e}")
+                                logger.error(f"QuickApp callback error: {e}")
                                 return None
                                 
                         api_manager.set_quickapp_callback(quickapp_callback)
@@ -276,42 +321,40 @@ def run_engine(
                         # Store reference to api_manager for WebSocket broadcasting
                         engine._api_manager = api_manager
                             
-                        safe_print(f"🌐 FastAPI server process started at http://{config.get('api_host')}:{config.get('api_port')}")
-                        safe_print("📡 Using multi-process architecture for maximum stability")
-                        
                     except Exception as e:
-                        safe_print(f"⚠️ Failed to start FastAPI server process: {e}")
-                        safe_print("Continuing without API server...")
+                        logger.warning(f"Failed to start FastAPI server process: {e}")
+                        logger.info("Continuing without API server...")
 
                 if script_path:
-                    safe_print(f"📄 Running script: {script_path}")
                     await engine.run_script(
                         f'_PY.mainLuaFile("{script_path}")', script_path
                     )
                 elif fragments:
-                    safe_print("📝 Running Lua fragments...")
+                    logger.info("Running Lua fragments...")
                     for i, fragment in enumerate(fragments):
-                        await engine.run_script(fragment, f"fragment_{i}")
+                        await engine.run_script(
+                            f"_PY.luaFragment({repr(fragment)})", f"fragment_{i}"
+                        )
                 else:
-                    safe_print("🎮 Starting interactive mode...")
+                    logger.info("Starting interactive mode")
                 
                 # Keep the engine running if there are active operations (timers, callbacks, etc.)
                 if engine.has_active_operations():
-                    safe_print("⏳ Keeping engine alive due to active operations (timers, callbacks, etc.)")
+                    logger.info("Keeping engine alive due to active operations")
                     while engine.has_active_operations():
                         await asyncio.sleep(1)
-                    safe_print("✅ All operations completed, shutting down")
+                    logger.info("All operations completed, shutting down")
                 elif not script_path and not fragments:
                     # Interactive mode - keep running indefinitely
                     while True:
                         await asyncio.sleep(1)
                 else:
                     # Script completed - check for active operations with timeout
-                    safe_print("📋 Script completed, checking for active operations...")
+                    logger.debug("Script completed, checking for active operations")
                     await asyncio.sleep(0.5)  # Brief grace period for cleanup
                     
                     if not engine.has_active_operations():
-                        safe_print("✅ No active operations detected - forcing clean shutdown")
+                        logger.info("No active operations detected - forcing clean shutdown")
                         # Force immediate termination - bypass any hanging background processes
                         import os
                         import sys
@@ -319,10 +362,10 @@ def run_engine(
                         sys.stderr.flush()
                         os._exit(0)
                     else:
-                        safe_print("⏳ Active operations detected, will keep running")
+                        logger.info("Active operations detected, will keep running")
                         while engine.has_active_operations():
                             await asyncio.sleep(1)
-                        safe_print("✅ All operations completed - forcing shutdown")
+                        logger.info("All operations completed - forcing shutdown")
                         import os
                         import sys
                         sys.stdout.flush()
@@ -330,7 +373,7 @@ def run_engine(
                         os._exit(0)
 
             except KeyboardInterrupt:
-                safe_print("🛑 Interrupted by user")
+                logger.info("Interrupted by user")
                 # Force clean exit without asyncio traceback
                 import os
                 import sys
@@ -338,7 +381,7 @@ def run_engine(
                 sys.stderr.flush()
                 os._exit(0)
             except Exception as e:
-                safe_print(f"❌ Engine error: {e}", f"[ERROR] Engine error: {e}")
+                logger.error(f"Engine error: {e}")
             finally:
                 # Clean up FastAPI server process
                 try:
@@ -351,7 +394,7 @@ def run_engine(
         try:
             asyncio.run(engine_main())
         except KeyboardInterrupt:
-            safe_print("🛑 Interrupted by user")
+            logger.info("Interrupted by user")
             # Force clean exit without asyncio traceback
             import os
             import sys
@@ -360,9 +403,9 @@ def run_engine(
             os._exit(0)
 
     except ImportError as e:
-        safe_print(f"❌ Import error: {e}", f"[ERROR] Import error: {e}")
+        logger.error(f"Import error: {e}")
     except Exception as e:
-        safe_print(f"❌ Unexpected error: {e}", f"[ERROR] Unexpected error: {e}")
+        logger.error(f"Unexpected error: {e}")
 
 
 def run_script_with_config(
@@ -375,17 +418,8 @@ def run_script_with_config(
     
     config = config or get_config()
     
-    # Always use simplified single-threaded architecture
-    safe_print(
-        "🚀 EPLua - Python Lua Engine",
-        "[EPLua] EPLua - Python Lua Engine",
-    )
-    safe_print("============================")
-    safe_print("ℹ️ Activated .venv virtual environment")
-    safe_print(
-        "📟 Single-threaded mode - engine running in main thread",
-        "[SIMPLE] Single-threaded mode - engine running in main thread",
-    )
+    # Display startup greeting with version information
+    display_startup_greeting(config)
 
     # Setup basic stub UI functions (for compatibility)
     def setup_stub_functions():
@@ -412,27 +446,61 @@ def run_script_with_config(
     run_engine(script_path, fragments, config)
 
 
-def run_interactive_repl():
+def run_interactive_repl(config: Dict[str, Any]):
     """Start interactive REPL mode by spawning a REPL client process"""
     try:
-        # The telnet server should already be running in the current EPLua process
-        # We just need to spawn the REPL client process
-        safe_print("📟 Starting REPL client...")
-        safe_print("Connecting to telnet server on localhost:8080...")
+        # Start the engine in interactive mode (similar to regular script execution)
+        async def start_repl_engine():
+            from eplua.engine import LuaEngine
+            
+            engine = LuaEngine(config=config)
+            
+            try:
+                # Display startup greeting
+                display_startup_greeting(config)
+                
+                # Start engine
+                await engine.start()
+                
+                # Start telnet server for REPL access
+                telnet_port = config.get("telnet_port", 8023)
+                await engine.run_script(f'_PY.start_telnet_server({telnet_port})', "telnet_server_start")
+                
+                # Give telnet server a moment to start
+                await asyncio.sleep(0.5)
+                
+                # Now spawn the REPL client process
+                logger.info("Starting REPL client...")
+                logger.info(f"Connecting to telnet server on localhost:{telnet_port}...")
 
-        # Find the repl.py file
-        repl_path = Path(__file__).parent / "repl.py"
-        if not repl_path.exists():
-            safe_print("❌ REPL client not found")
-            return
+                # Find the repl.py file
+                repl_path = Path(__file__).parent / "repl.py"
+                if not repl_path.exists():
+                    logger.error("REPL client not found")
+                    return
 
-        # Spawn the REPL client process
-        subprocess.run([sys.executable, str(repl_path)], check=False)
+                # Spawn the REPL client process with the configured port
+                import subprocess
+                # Start REPL client in background 
+                subprocess.Popen([sys.executable, str(repl_path), "--port", str(telnet_port)])
+                
+                # Keep the engine running indefinitely for REPL access
+                logger.info("REPL mode active. Engine will run until terminated.")
+                while True:
+                    await asyncio.sleep(1)
+                    
+            except KeyboardInterrupt:
+                logger.info("REPL interrupted by user")
+            finally:
+                await engine.stop()
+                
+        # Run the async engine
+        asyncio.run(start_repl_engine())
 
     except KeyboardInterrupt:
-        safe_print("🛑 REPL interrupted")
+        logger.info("REPL interrupted")
     except Exception as e:
-        safe_print(f"❌ REPL error: {e}")
+        logger.error(f"REPL error: {e}")
 
 
 def main():
@@ -440,6 +508,12 @@ def main():
     # Suppress multiprocessing resource tracker warnings
     import os
     os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:multiprocessing.resource_tracker"
+    
+    # Set up basic logging first (will be updated with user preference later)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     
     parser = argparse.ArgumentParser(
         description="EPLua - Python Lua Engine with Web UI"
@@ -496,6 +570,12 @@ def main():
         help="Host for FastAPI server (default: localhost)",
     )
     parser.add_argument(
+        "--telnet-port",
+        type=int,
+        default=8023,
+        help="Port for telnet server (default: 8023)",
+    )
+    parser.add_argument(
         "--no-api",
         action="store_true",
         help="Disable FastAPI server",
@@ -518,10 +598,11 @@ def main():
     config["api_enabled"] = not args.no_api
     config["api_host"] = args.api_host
     config["api_port"] = args.api_port
+    config["telnet_port"] = args.telnet_port
     config["runFor"] = args.run_for
 
     if args.interactive:
-        run_interactive_repl()
+        run_interactive_repl(config)
     else:
         run_script_with_config(
             script_path=args.script,

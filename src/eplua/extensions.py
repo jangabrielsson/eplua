@@ -463,7 +463,6 @@ def broadcast_view_update(qa_id: int, element_id: str, property_name: str, value
     Returns:
         True if broadcast was successful, False otherwise
     """
-    print(f"🔔 broadcast_view_update called: QA {qa_id}, {element_id}.{property_name} = {value}")
     try:
         # Get the engine
         engine = get_global_engine()

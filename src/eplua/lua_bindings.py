@@ -443,7 +443,7 @@ class LuaBindings:
             return default
         
         @export_to_lua("start_telnet_server")
-        def start_telnet_server(port=8080):
+        def start_telnet_server(port=8023):
             """Start async telnet server for remote REPL access"""
             import asyncio
             
@@ -583,7 +583,7 @@ class LuaBindings:
         def client_print(client_id: int, message: str) -> None:
             """Send output to specific client(s) or stdout"""
             import asyncio
-            
+            # print(f"CP {client_id}: {message}", flush=True)
             if client_id == 0 or client_id is None:
                 # Print to stdout
                 print(message, flush=True)

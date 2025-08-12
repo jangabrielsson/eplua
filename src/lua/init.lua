@@ -367,6 +367,7 @@ function print(...)
 end
 
 function _PY.clientExecute(clientId,code)
+  -- _print("CE", clientId, code)
   local func, err = load(code)
   if not func then _PY.clientPrint(clientId,err) return end
   local res = {pcall(func)}

@@ -28,7 +28,7 @@ except ImportError:
 class EPLuaREPL:
     """Interactive REPL client for EPLua with enhanced UI"""
     
-    def __init__(self, host: str = 'localhost', port: int = 8080):
+    def __init__(self, host: str = 'localhost', port: int = 8023):
         self.host = host
         self.port = port
         self.socket = None
@@ -255,7 +255,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="EPLua Interactive REPL Client")
     parser.add_argument("--host", default="localhost", help="Telnet server host (default: localhost)")
-    parser.add_argument("--port", type=int, default=8080, help="Telnet server port (default: 8080)")
+    parser.add_argument("--port", type=int, default=8023, help="Telnet server port (default: 8023)")
     
     args = parser.parse_args()
     

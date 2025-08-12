@@ -276,11 +276,8 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
     
     async def broadcast_to_websockets(qa_id: int, element_id: str, property_name: str, value):
         """Broadcast a view update to all connected WebSocket clients"""
-        logger.info(f"🔔 broadcast_to_websockets called: QA {qa_id}, {element_id}.{property_name} = {value}")
-        
         # Access websocket_connections from app.state to avoid scope issues
         connections = getattr(app.state, 'websocket_connections', set())
-        logger.info(f"📊 WebSocket connections: {len(connections)}")
         
         message = {
             "type": "view_update",
@@ -293,19 +290,16 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
         if not connections:
             # Buffer the message for later delivery
             pending_broadcasts.append(message)
-            logger.info(f"📦 Buffered WebSocket message (total buffered: {len(pending_broadcasts)}): {message}")
+            logger.debug(f"Buffered WebSocket message (total: {len(pending_broadcasts)})")
             return
         
         # Send message to all connected clients
-        logger.info(f"📤 Sending WebSocket message: {message}")
-        
         disconnected = set()
         for websocket in connections:
             try:
                 await websocket.send_json(message)
-                logger.info(f"✅ Message sent to WebSocket client")
             except Exception as e:
-                logger.warning(f"❌ Failed to send to WebSocket client: {e}")
+                logger.warning(f"Failed to send to WebSocket client: {e}")
                 disconnected.add(websocket)
         
         # Clean up disconnected clients
@@ -320,19 +314,16 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
         if not connections:
             return
             
-        logger.info(f"🚀 Flushing {len(pending_broadcasts)} pending broadcasts to {len(connections)} WebSocket clients")
+        logger.info(f"Flushing {len(pending_broadcasts)} pending broadcasts")
         
         # Send all buffered messages
         for message in pending_broadcasts:
-            logger.info(f"📤 Sending buffered WebSocket message: {message}")
-            
             disconnected = set()
             for websocket in connections:
                 try:
                     await websocket.send_json(message)
-                    logger.info(f"✅ Buffered message sent to WebSocket client")
                 except Exception as e:
-                    logger.warning(f"❌ Failed to send buffered message to WebSocket client: {e}")
+                    logger.warning(f"Failed to send buffered message: {e}")
                     disconnected.add(websocket)
             
             # Clean up disconnected clients
@@ -340,7 +331,6 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
         
         # Clear the buffer after successful delivery
         pending_broadcasts.clear()
-        logger.info(f"🧹 Cleared pending broadcasts buffer")
     
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
@@ -388,7 +378,6 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
                     # Check for broadcast requests in the broadcast queue (non-blocking)
                     try:
                         message = broadcast_queue.get_nowait()
-                        logger.info(f"📥 FastAPI process received broadcast message: {message}")
                         
                         if isinstance(message, dict) and message.get("type") == "websocket_broadcast":
                             # Handle broadcast request directly
@@ -398,14 +387,11 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
                             property_name = data.get("property_name")
                             value = data.get("value")
                             
-                            logger.info(f"🔄 Processing WebSocket broadcast: QA {qa_id}, {element_id}.{property_name} = {value}")
-                            
                             # Use the broadcast function from app state
                             if hasattr(app.state, 'broadcast_to_websockets'):
                                 await app.state.broadcast_to_websockets(qa_id, element_id, property_name, value)
-                                logger.info(f"✅ Broadcast sent to WebSocket clients: QA {qa_id}, {element_id}.{property_name} = {value}")
                             else:
-                                logger.warning("🔍 broadcast_to_websockets function not found in app.state")
+                                logger.warning("broadcast_to_websockets function not found in app.state")
                             
                     except queue.Empty:
                         pass
@@ -478,9 +464,7 @@ def create_fastapi_app(request_queue: multiprocessing.Queue, response_queue: mul
     @app.on_event("shutdown")
     async def shutdown_event_handler():
         """Signal background tasks to shutdown"""
-        logger.info("🛑 FastAPI shutdown event called!")
         shutdown_event.set()
-        logger.info("🛑 Shutdown signal sent to background tasks")
 
     
     return app
@@ -506,8 +490,8 @@ def run_fastapi_server(request_queue: multiprocessing.Queue, response_queue: mul
             app,
             host=config.get("host", "localhost"),
             port=config.get("port", 8080),
-            log_level="info",
-            access_log=True
+            log_level="warning",
+            access_log=False
         )
         
     except Exception as e:
@@ -715,10 +699,8 @@ class FastAPIProcessManager:
     def broadcast_view_update(self, qa_id: int, element_id: str, property_name: str, value: Any) -> bool:
         """Send a WebSocket broadcast request via IPC"""
         try:
-            print(f"📡 APIManager.broadcast_view_update called: QA {qa_id}, {element_id}.{property_name} = {value}")
-            
             if not self.is_running():
-                print("⚠️ FastAPI process not running")
+                logger.warning("FastAPI process not running")
                 return False
                 
             # Queue the WebSocket broadcast request
@@ -735,11 +717,10 @@ class FastAPIProcessManager:
             }
             
             self.broadcast_queue.put(broadcast_data)
-            print(f"✅ Successfully queued WebSocket broadcast: QA {qa_id}, element {element_id}")
             return True
             
         except Exception as e:
-            print(f"❌ Error queuing WebSocket broadcast: {e}")
+            logger.error(f"Error queuing WebSocket broadcast: {e}")
             return False
         
     def is_running(self) -> bool:
