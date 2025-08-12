@@ -446,11 +446,11 @@
                 document.getElementById('qa-id').textContent = this.qaId;
                 
                 try {
+                    // Connect WebSocket FIRST for real-time updates
+                    this.connectWebSocket();
+                    
                     // Load QuickApp definition
                     await this.loadQuickApp();
-                    
-                    // Connect WebSocket for real-time updates
-                    this.connectWebSocket();
                     
                     // Set up desktop event handler
                     window.handleDesktopEvent = this.handleDesktopEvent.bind(this);
@@ -917,31 +917,33 @@
             
             connectWebSocket() {
                 const wsUrl = this.apiBase.replace('http', 'ws') + '/ws';
+                this.debug(`Connecting to WebSocket: ${wsUrl}`);
                 this.websocket = new WebSocket(wsUrl);
                 
                 this.websocket.onopen = () => {
-                    this.debug('WebSocket connected');
+                    this.debug('✅ WebSocket connected successfully');
                     this.updateStatus('Connected');
                 };
                 
                 this.websocket.onmessage = (event) => {
                     try {
                         const message = JSON.parse(event.data);
+                        this.debug('📨 WebSocket message received:', message);
                         this.handleWebSocketMessage(message);
                     } catch (error) {
-                        this.debug('WebSocket message error:', error.message);
+                        this.debug('❌ WebSocket message error:', error.message);
                     }
                 };
                 
                 this.websocket.onclose = () => {
-                    this.debug('WebSocket disconnected');
+                    this.debug('❌ WebSocket disconnected');
                     this.updateStatus('Disconnected');
                     // Attempt to reconnect after 5 seconds
                     setTimeout(() => this.connectWebSocket(), 5000);
                 };
                 
                 this.websocket.onerror = (error) => {
-                    this.debug('WebSocket error:', error);
+                    this.debug('❌ WebSocket error:', error);
                 };
             }
             
