@@ -1,0 +1,87 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Capabilities API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/service/capabilities": {
+      "get": {
+        "tags": ["capabilities"],
+        "summary": "Get communication protocols capabilities",
+        "operationId": "getCapabilities",
+        "responses": {
+          "200": {
+            "description": "Returns data capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "$ref": "#/components/schemas/CapabilitiesDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CapabilitiesDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "enum": ["FIBARO_CAP_PROTOCOL_ZWAVE", "FIBARO_CAP_PROTOCOL_ELERO", "FIBARO_CAP_PROTOCOL_NICE_BIDI", "FIBARO_CAP_PROTOCOL_NICE_MONO", "FIBARO_CAP_PROTOCOL_ZIGBEE"]
+                },
+                "supported": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "example": {
+          "version": "1",
+          "capabilities": [
+            {
+              "id": "FIBARO_CAP_PROTOCOL_ZWAVE",
+              "supported": true
+            },
+            {
+              "id": "FIBARO_CAP_PROTOCOL_ELERO",
+              "supported": true
+            },
+            {
+              "id": "FIBARO_CAP_PROTOCOL_NICE_BIDI",
+              "supported": true
+            },
+            {
+              "id": "FIBARO_CAP_PROTOCOL_NICE_MONO",
+              "supported": true
+            },
+            {
+              "id": "FIBARO_CAP_PROTOCOL_ZIGBEE",
+              "supported": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}

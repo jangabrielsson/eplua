@@ -1,0 +1,54 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Get ZWave Engine API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/service/getZwaveEngine": {
+      "get": {
+        "tags": ["zwave"],
+        "summary": "Get ZWave Engine version and selector status",
+        "operationId": "getZwaveEngine",
+        "responses": {
+          "200": {
+            "description": "Returns zwave engine version and selector status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetZwaveEngineDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GetZwaveEngineDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/ZwaveEngineVersion"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["set", "not_set"]
+          }
+        },
+        "example": {
+          "version": "3.0",
+          "status": "not_set"
+        }
+      }
+    }
+  }
+}

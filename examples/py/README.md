@@ -21,8 +21,7 @@ These examples demonstrate EPLua's **internal `_PY.*` functions** used for engin
 ### System Functions
 - `_PY.gui_available()` - GUI system check
 - `_PY.create_window(title, width, height)` - GUI windows
-- `_PY.run_in_thread(callback_id, delay)` - Threading
-- `_PY.file_operation(callback_id, path, op)` - File I/O
+
 
 ## Examples Overview
 

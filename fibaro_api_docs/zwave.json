@@ -1,0 +1,475 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Z-Wave API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/zwaveSettings": {
+      "get": {
+        "tags": ["zwave"],
+        "summary": "Get zwave settings object",
+        "operationId": "getZwaveSettings",
+        "responses": {
+          "200": {
+            "description": "Returns zwave settings data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZwaveSettingsDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["zwave"],
+        "summary": "Update zwave settings data",
+        "operationId": "updateZwaveSettings",
+        "requestBody": {
+          "description": "Zwave settings",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZwaveSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "No response",
+            "content": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/slave/{uuid}/api/zwaveSettings": {
+      "get": {
+        "tags": ["zwave"],
+        "summary": "Use proxy to get zwave settings object",
+        "operationId": "getZwaveSettingsProxy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uuid",
+            "description": "Slave Id on which we call the action",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns zwave settings data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZwaveSettingsDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["zwave"],
+        "summary": "Use proxy to update zwave settings data",
+        "operationId": "updateZwaveSettingsProxy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uuid",
+            "description": "Slave Id on which we call the action",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Zwave settings",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZwaveSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "No response",
+            "content": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/zwaveReconfigurationTasks": {
+      "get": {
+        "tags": ["zwave"],
+        "summary": "Get zwave configuration task list",
+        "operationId": "getZwaveConfigurationTaskList",
+        "responses": {
+          "200": {
+            "description": "Returns zwave configuration task list data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZwaveConfigurationTaskDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["zwave"],
+        "summary": "Start device configuration",
+        "operationId": "configureZwaveDevice",
+        "requestBody": {
+          "description": "Configuration data",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZwaveDeviceConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Returns zwave configuration task data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZwaveConfigurationTaskDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/zwaveReconfigurationTasks/{taskId}": {
+      "get": {
+        "tags": ["zwave"],
+        "summary": "Get zwave configuration task",
+        "operationId": "getZwaveConfigurationTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "description": "Id of existing task",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns zwave configuration task data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZwaveConfigurationTaskDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["zwave"],
+        "summary": "Update zwave configuration task",
+        "operationId": "updateZwaveConfigurationTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "description": "Id of existing task",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Configuration task request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZwaveConfigurationTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Returns changed zwave configuration task data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZwaveConfigurationTaskDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {}
+          }
+        }
+      },
+      "delete": {
+        "tags": ["zwave"],
+        "summary": "Delete zwave configuration task",
+        "operationId": "deleteZwaveConfigurationTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "description": "Id of existing task",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response",
+            "content": {}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/zwaveReconfigurationTasks/reconfigureAll": {
+      "post": {
+        "tags": ["zwave"],
+        "summary": "Start configure zwave network",
+        "operationId": "configureZwaveNetwork",
+        "requestBody": {
+          "description": "Configuration data",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZwaveNetworkConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Returns zwave configuration task list data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZwaveConfigurationTaskDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          },
+          "404": {
+            "description": "Not found",
+            "content": {}
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ZwaveSettingsDto": {
+        "type": "object",
+        "properties": {
+          "globalPollingEnabled": {
+            "type": "boolean"
+          },
+          "globalPollingInterval": {
+            "type": "number"
+          },
+          "minDevicePollingInterval": {
+            "type": "number"
+          },
+          "minGlobalPollingInterval": {
+            "type": "number"
+          }
+        },
+        "example": {
+          "globalPollingEnabled": true,
+          "minDevicePollingInterval": 6.027456183070403,
+          "globalPollingInterval": 0.8008281904610115,
+          "minGlobalPollingInterval": 1.4658129805029452
+        }
+      },
+      "ZwaveSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "globalPollingEnabled": {
+            "type": "boolean"
+          },
+          "globalPollingInterval": {
+            "type": "number"
+          },
+          "minDevicePollingInterval": {
+            "type": "number"
+          },
+          "minGlobalPollingInterval": {
+            "type": "number"
+          }
+        },
+        "example": {
+          "globalPollingEnabled": true,
+          "minDevicePollingInterval": 6.027456183070403,
+          "globalPollingInterval": 0.8008281904610115,
+          "minGlobalPollingInterval": 1.4658129805029452
+        }
+      },
+      "ZwaveConfigurationTaskDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "deviceId": {
+            "type": "number"
+          },
+          "nodeId": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notificationId": {
+            "type": "number"
+          },
+          "softReconfiguration": {
+            "type": "boolean"
+          },
+          "battery": {
+            "type": "boolean"
+          },
+          "childDevices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          }
+        },
+        "example": {
+          "childDevices": ["{}", "{}"],
+          "softReconfiguration": true,
+          "name": "name",
+          "notificationId": 5.962133916683182,
+          "id": 0.8008281904610115,
+          "battery": true,
+          "deviceId": 6.027456183070403,
+          "nodeId": 1.4658129805029452,
+          "status": "status"
+        }
+      },
+      "ZwaveConfigurationTaskRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "status": "status"
+        }
+      },
+      "ZwaveDeviceConfigurationRequest": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "number"
+          },
+          "softReconfiguration": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "softReconfiguration": true,
+          "name": "name",
+          "deviceId": 0.8008281904610115
+        }
+      },
+      "ZwaveNetworkConfigurationRequest": {
+        "type": "object",
+        "properties": {
+          "softReconfiguration": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "softReconfiguration": true
+        }
+      }
+    }
+  }
+}

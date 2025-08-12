@@ -1,0 +1,61 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "System API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api/service"
+    }
+  ],
+  "paths": {
+    "/factoryReset": {
+      "post": {
+        "tags": ["system"],
+        "summary": "Performs asynchronous system reset to factory defaults",
+        "operationId": "factoryReset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactoryResetRequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Factory reset started"
+          },
+          "400": {
+            "description": "Factory reset failed"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "FactoryResetRequestBody": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "description": "RA ticket"
+          },
+          "deleteBackups": {
+            "type": "boolean",
+            "description": "Flag indicating whether stored backups should be removed"
+          },
+          "detachFibaroId": {
+            "type": "boolean",
+            "description": "Flag indicating whether HC should be detached from cloud account"
+          }
+        }
+      }
+    }
+  }
+}
+  

@@ -1,0 +1,88 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Voip API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/voip": {
+      "get": {
+        "tags": ["voip"],
+        "summary": "Get list of all available voip devices",
+        "operationId": "getVoipDevs",
+        "responses": {
+          "200": {
+            "description": "Returns voip data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Voip"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Voip": {
+        "type": "object",
+        "properties": {
+          "voipDevices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VoipDev"
+            }
+          }
+        },
+        "example": {
+          "voipDevices": [
+            {
+              "sipUserID": "sipUserID",
+              "deviceIcon": "deviceIcon",
+              "id": 0,
+              "sipDisplayName": "sipDisplayName"
+            },
+            {
+              "sipUserID": "sipUserID",
+              "deviceIcon": "deviceIcon",
+              "id": 0,
+              "sipDisplayName": "sipDisplayName"
+            }
+          ]
+        }
+      },
+      "VoipDev": {
+        "type": "object",
+        "properties": {
+          "deviceIcon": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "sipDisplayName": {
+            "type": "string"
+          },
+          "sipUserID": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "sipUserID": "sipUserID",
+          "deviceIcon": "deviceIcon",
+          "id": 0,
+          "sipDisplayName": "sipDisplayName"
+        }
+      }
+    }
+  }
+}

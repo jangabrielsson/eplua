@@ -1,0 +1,2768 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Plugins API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/plugins": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Get all plugins object",
+        "operationId": "getPlugins",
+        "responses": {
+          "200": {
+            "description": "Returns list of installed and available plugins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plugins/callUIEvent": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Call UiEvent Action",
+        "operationId": "callUIEvent",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "deviceID",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true,
+            "description": "Device ID"
+          },
+          {
+            "in": "query",
+            "name": "elementName",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "description": "Element name"
+          },
+          {
+            "in": "query",
+            "name": "eventType",
+            "schema": {
+              "$ref": "#/components/schemas/UiEventType"
+            },
+            "required": true,
+            "description": "Event type"
+          },
+          {
+            "in": "query",
+            "name": "value",
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "description": "Event value"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UiEvent has been called",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/plugins/createChildDevice": {
+      "post": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Create child device",
+        "operationId": "createChildDevice",
+        "requestBody": {
+          "description": "Body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChildDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Child device has been created",
+            "content": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/plugins/getView": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Get plugin view",
+        "operationId": "getView",
+        "description": "Get plugin view. Required parameters:\n * **id** - get plugin view by id \n * **name**, **Accept** and **Accept-Language** - get plugin view by type, parameter **type** is optional.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Device id"
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "description": "Device type name"
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string"
+            },
+            "description": "View type (config or view). Only use for application/xml"
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "v2"
+              ]
+            },
+            "description": "View type (config or view). Only use for application/xml"
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Accept language header"
+          },
+          {
+            "in": "header",
+            "name": "Accept",
+            "schema": {
+              "type": "string"
+            },
+            "description": "View format to return. Accepted: application/json and application/xml."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns plugin view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginViewDto"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Returned if Accept value is unsupported.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/xml": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. Return if plugin type does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/xml": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plugins/installed": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Get installed plugins",
+        "operationId": "getInstalledPlugins",
+        "description": "Get installed plugins",
+        "responses": {
+          "200": {
+            "description": "Returns installed plugins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstalledPluginsDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Install plugin",
+        "operationId": "installPlugin",
+        "description": "Install plugin. Valid only for HC2. In HC3 each plugin is being installed during the adding.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Type of installing plugin. Type it like a **form data**."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns plugin view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstalledPluginsDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Delete plugin",
+        "operationId": "deletePlugin",
+        "description": "Delete plugin",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Type of installing plugin. Type it like a **form data**."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns installed plugins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstalledPluginsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plugins/interfaces": {
+      "post": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Add or remove interfaces",
+        "operationId": "interfaces",
+        "requestBody": {
+          "description": "Body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginsInterfaceParamDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Interfaces has been added or removed",
+            "content": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/plugins/ipCameras": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Get all IP cameras object",
+        "operationId": "getIPCameras",
+        "responses": {
+          "200": {
+            "description": "Returns list of available IP cameras",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IPCameraDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plugins/publishEvent": {
+      "post": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Publish event",
+        "operationId": "pluginPublishEvent",
+        "requestBody": {
+          "description": "Body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ZwaveNodeRemovedEventDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CentralSceneEventDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeviceFirmwareUpdateEventDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SceneActivationEventDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ZwaveNetworkResetEventDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AccessControlEventDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/VideoGateIncomingCallEventDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ZwaveDeviceParametersChangedEventDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GeofenceEventDto"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event has been published",
+            "content": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/plugins/restart": {
+      "post": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Restart plugin",
+        "operationId": "restartPlugin",
+        "requestBody": {
+          "description": "Body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestartPluginRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin has been restarted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartPluginResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/plugins/types": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Get information about plugins in system",
+        "operationId": "getPluginsTypes",
+        "description": "Get information about plugins in system",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Accept language header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns plugins information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginsTypesDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plugins/updateProperty": {
+      "post": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Update property",
+        "operationId": "updateProperty",
+        "requestBody": {
+          "description": "Body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePropertyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Property has been updated",
+            "content": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/plugins/updateView": {
+      "post": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Update plugin view",
+        "operationId": "updateView",
+        "description": "Update plugin view",
+        "requestBody": {
+          "description": "Component information needed to update plugin",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginUpdateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Returns plugin view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Returned if Accept value is unsupported.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. Return if plugin type does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plugins/v2": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Get all plugins object",
+        "operationId": "getPluginsV2",
+        "responses": {
+          "200": {
+            "description": "Returns list of available plugins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginsV2Dto"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PluginViewDto": {
+        "type": "object",
+        "properties": {
+          "$jason": {
+            "type": "object",
+            "properties": {
+              "head": {
+                "type": "object"
+              },
+              "body": {
+                "$ref": "#/components/schemas/PluginBodyDto"
+              }
+            }
+          }
+        }
+      },
+      "PluginBodyDto": {
+        "type": "object",
+        "properties": {
+          "sections": {
+            "$ref": "#/components/schemas/PluginSectionsDto"
+          },
+          "header": {
+            "$ref": "#/components/schemas/PluginHeaderDto"
+          }
+        }
+      },
+      "PluginHeaderDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Page title",
+            "example": "Magic page"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "height": {
+                "type": "string",
+                "description": "Page height",
+                "example": "120"
+              }
+            }
+          }
+        },
+        "example": {
+          "title": "Magic page",
+          "style": {
+            "height": "120"
+          }
+        }
+      },
+      "PluginSectionsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PluginButtonDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginHorizontalLayoutDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginImageDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginLabelDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginMultiSelectDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSingleSelectDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSliderDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSpaceDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSwitchDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginVerticalLayoutDto"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "PluginButtonDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "button_001"
+          },
+          "text": {
+            "type": "string",
+            "description": "The Text displayed as the content of the button",
+            "example": "Click Me!"
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "button"
+            ],
+            "example": "button"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string",
+                "description": "Component weight",
+                "example": "1"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          },
+          "image": {
+            "type": "string",
+            "description": "Button image",
+            "example": "/assets/icon/arrow-down.svg"
+          },
+          "classes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "eventBinding": {
+            "type": "object"
+          }
+        },
+        "example": {
+          "name": "button_001",
+          "text": "Click Me!",
+          "visible": true,
+          "type": "button",
+          "style": {
+            "weight": "1"
+          }
+        }
+      },
+      "PluginHorizontalLayoutDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "horizontal_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "horizontal"
+            ],
+            "example": "horizontal"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PluginButtonDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginHorizontalLayoutDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginImageDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginLabelDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginMultiSelectDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSingleSelectDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSliderDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSpaceDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSwitchDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginVerticalLayoutDto"
+                }
+              ]
+            }
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string",
+                "description": "Component weight",
+                "example": "1"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          }
+        },
+        "example": {
+          "name": "horizontal_001",
+          "type": "horizontal",
+          "style": {
+            "weight": "1"
+          }
+        }
+      },
+      "PluginImageDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "image_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "image"
+            ],
+            "example": "image"
+          },
+          "url": {
+            "type": "string",
+            "description": "Path to image",
+            "example": "path/to/image.jpg"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "dynamic": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "dynamic": "1"
+            }
+          }
+        },
+        "example": {
+          "name": "image_001",
+          "url": "path/to/image.jpg",
+          "type": "image",
+          "style": {
+            "dynamic": "1"
+          }
+        }
+      },
+      "PluginLabelDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "label_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "label"
+            ],
+            "example": "label"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text to be displayed inside of the label.",
+            "example": "Label text"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          }
+        },
+        "example": {
+          "name": "label_001",
+          "type": "label",
+          "text": "Label text",
+          "style": {
+            "weight": "1"
+          }
+        }
+      },
+      "PluginMultiSelectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "select_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "select"
+            ],
+            "example": "select"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text to be displayed next to component.",
+            "example": "Label text"
+          },
+          "selectionType": {
+            "type": "string",
+            "enum": [
+              "multi"
+            ],
+            "example": "multi"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginOptionDto"
+            }
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "List of selected options",
+              "example": [
+                "option1",
+                "option2"
+              ]
+            }
+          }
+        },
+        "example": {
+          "name": "select_001",
+          "type": "select",
+          "text": "Choose one option:",
+          "selectionType": "multi",
+          "style": {
+            "weight": "1"
+          },
+          "options": [
+            {
+              "value": "1",
+              "type": "option",
+              "text": "option1"
+            },
+            {
+              "value": "2",
+              "type": "option",
+              "text": "option2"
+            },
+            {
+              "value": "3",
+              "type": "option",
+              "text": "option3"
+            }
+          ],
+          "values": [
+            "option1",
+            "option2"
+          ]
+        }
+      },
+      "PluginOptionDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "Option value.",
+            "example": "1"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "option"
+            ],
+            "example": "option"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text to be displayed.",
+            "example": "option1"
+          }
+        },
+        "example": {
+          "value": "1",
+          "type": "option",
+          "text": "option1"
+        }
+      },
+      "PluginSingleSelectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "select_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "select"
+            ],
+            "example": "select"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text to be displayed next to component.",
+            "example": "Choose one option:"
+          },
+          "selectionType": {
+            "type": "string",
+            "enum": [
+              "single"
+            ],
+            "example": "single"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginOptionDto"
+            }
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "List of selected options",
+              "example": [
+                "option1"
+              ]
+            }
+          }
+        },
+        "example": {
+          "name": "select_001",
+          "type": "select",
+          "text": "Choose one option:",
+          "selectionType": "single",
+          "style": {
+            "weight": "1"
+          },
+          "options": [
+            {
+              "value": "1",
+              "type": "option",
+              "text": "option1"
+            },
+            {
+              "value": "2",
+              "type": "option",
+              "text": "option2"
+            }
+          ],
+          "values": [
+            "option1"
+          ]
+        }
+      },
+      "PluginSliderDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "slider_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "slider"
+            ],
+            "example": "slider"
+          },
+          "max": {
+            "type": "string",
+            "description": "The maximum selectable value.",
+            "example": "100"
+          },
+          "min": {
+            "type": "string",
+            "description": "The minimum selectable value.",
+            "example": "0"
+          },
+          "step": {
+            "type": "string",
+            "description": "The step between values.",
+            "example": "1"
+          },
+          "value": {
+            "type": "string",
+            "description": "The chosen value.",
+            "example": "53"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          }
+        },
+        "example": {
+          "name": "slider_001",
+          "type": "slider",
+          "max": "100",
+          "min": "0",
+          "step": "1",
+          "value": "53",
+          "style": {
+            "weight": "1"
+          }
+        }
+      },
+      "PluginSpaceDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "space_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "space"
+            ],
+            "example": "space"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          }
+        },
+        "example": {
+          "name": "space_001",
+          "type": "space",
+          "style": {
+            "weight": "1"
+          }
+        }
+      },
+      "PluginSwitchDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "switch_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "switch"
+            ],
+            "example": "switch"
+          },
+          "value": {
+            "type": "string",
+            "enum": [
+              "true",
+              "false"
+            ],
+            "example": "true"
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          }
+        },
+        "example": {
+          "name": "switch_001",
+          "type": "switch",
+          "value": "true",
+          "style": {
+            "weight": "1"
+          }
+        }
+      },
+      "PluginVerticalLayoutDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component name",
+            "example": "vertical_001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "vertical"
+            ],
+            "example": "vertical"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PluginButtonDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginHorizontalLayoutDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginImageDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginLabelDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginMultiSelectDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSingleSelectDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSliderDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSpaceDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginSwitchDto"
+                },
+                {
+                  "$ref": "#/components/schemas/PluginVerticalLayoutDto"
+                }
+              ]
+            }
+          },
+          "style": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "string",
+                "description": "Component weight",
+                "example": "1"
+              }
+            },
+            "example": {
+              "weight": "1"
+            }
+          }
+        },
+        "example": {
+          "name": "vertical_001",
+          "type": "vertical",
+          "components": [],
+          "style": {
+            "weight": "1"
+          }
+        }
+      },
+      "PluginsTypesDto": {
+        "type": "object",
+        "properties": {
+          "installed": {
+            "$ref": "#/components/schemas/InstalledPluginsDto"
+          },
+          "all": {
+            "type": "object",
+            "properties": {
+              "types": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "category": {
+                      "type": "integer",
+                      "description": "Category id",
+                      "example": 0
+                    },
+                    "plugins": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Plugin type",
+                            "example": "com.fibaro.alphatechFarfisa"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Plugin name",
+                            "example": "IP Bell"
+                          },
+                          "defaultMainDeviceName": {
+                            "type": "string",
+                            "description": "Default main device name",
+                            "example": "IP Bell"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "Plugin description",
+                            "example": "IP Bell – Zadbaj o bezpieczeństwo Twojego domu kilkoma kliknięciami integrując wideodomofon z systemem Fibaro. Plugin umożliwia sterowanie wideodomofonem IP Bell oraz podgląd obrazu z kamery wideodomofonu za pomocą interfejsu Fibaro."
+                          },
+                          "user": {
+                            "type": "string",
+                            "description": "User",
+                            "example": "Fibar Group S.A."
+                          },
+                          "compatibility": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "description": "compatibility",
+                              "example": "iPad"
+                            },
+                            "example": [
+                              "iPad",
+                              "iPhone",
+                              "Android Phone",
+                              "Android Tablet",
+                              "Home Center 2"
+                            ]
+                          },
+                          "predefined": {
+                            "type": "boolean",
+                            "description": "Describes whether the plugin is predefined in the system.",
+                            "example": true
+                          },
+                          "version": {
+                            "type": "string",
+                            "description": "Plugin version",
+                            "example": "1.0"
+                          },
+                          "url": {
+                            "type": "string",
+                            "description": "Plugin url",
+                            "example": "panels/external-alarm.html?type=com.fibaro.dscAlarm"
+                          },
+                          "installed": {
+                            "type": "boolean",
+                            "description": "Is plugins installed",
+                            "example": true
+                          }
+                        },
+                        "example": {
+                          "type": "com.fibaro.alphatechFarfisa",
+                          "name": "IP Bell",
+                          "defaultMainDeviceName": "IP Bell",
+                          "description": "IP Bell – Zadbaj o bezpieczeństwo Twojego domu kilkoma kliknięciami integrując wideodomofon z systemem Fibaro. Plugin umożliwia sterowanie wideodomofonem IP Bell oraz podgląd obrazu z kamery wideodomofonu za pomocą interfejsu Fibaro.",
+                          "user": "Fibar Group S.A.",
+                          "compatibility": [
+                            "iPad",
+                            "iPhone",
+                            "Android Phone",
+                            "Android Tablet",
+                            "Home Center 2"
+                          ],
+                          "predefined": false,
+                          "version": "1.0",
+                          "url": "",
+                          "installed": false
+                        }
+                      },
+                      "example": [
+                        {
+                          "type": "com.fibaro.alphatechFarfisa",
+                          "name": "IP Bell",
+                          "defaultMainDeviceName": "IP Bell",
+                          "description": "IP Bell – Zadbaj o bezpieczeństwo Twojego domu kilkoma kliknięciami integrując wideodomofon z systemem Fibaro. Plugin umożliwia sterowanie wideodomofonem IP Bell oraz podgląd obrazu z kamery wideodomofonu za pomocą interfejsu Fibaro.",
+                          "user": "Fibar Group S.A.",
+                          "compatibility": [
+                            "iPad",
+                            "iPhone",
+                            "Android Phone",
+                            "Android Tablet",
+                            "Home Center 2"
+                          ],
+                          "predefined": false,
+                          "version": "1.0",
+                          "url": "",
+                          "installed": false
+                        }
+                      ]
+                    },
+                    "installed": {
+                      "type": "integer",
+                      "description": "Number of installed plugins in category",
+                      "example": 3
+                    }
+                  },
+                  "example": {
+                    "category": 0,
+                    "plugins": [
+                      {
+                        "type": "com.fibaro.alphatechFarfisa",
+                        "name": "IP Bell",
+                        "defaultMainDeviceName": "IP Bell",
+                        "description": "IP Bell – Zadbaj o bezpieczeństwo Twojego domu kilkoma kliknięciami integrując wideodomofon z systemem Fibaro. Plugin umożliwia sterowanie wideodomofonem IP Bell oraz podgląd obrazu z kamery wideodomofonu za pomocą interfejsu Fibaro.",
+                        "user": "Fibar Group S.A.",
+                        "compatibility": [
+                          "iPad",
+                          "iPhone",
+                          "Android Phone",
+                          "Android Tablet",
+                          "Home Center 2"
+                        ],
+                        "predefined": false,
+                        "version": "1.0",
+                        "url": "",
+                        "installed": false
+                      }
+                    ],
+                    "installed": 3
+                  }
+                },
+                "example": [
+                  {
+                    "category": 0,
+                    "plugins": [
+                      {
+                        "type": "com.fibaro.alphatechFarfisa",
+                        "name": "IP Bell",
+                        "defaultMainDeviceName": "IP Bell",
+                        "description": "IP Bell – Zadbaj o bezpieczeństwo Twojego domu kilkoma kliknięciami integrując wideodomofon z systemem Fibaro. Plugin umożliwia sterowanie wideodomofonem IP Bell oraz podgląd obrazu z kamery wideodomofonu za pomocą interfejsu Fibaro.",
+                        "user": "Fibar Group S.A.",
+                        "compatibility": [
+                          "iPad",
+                          "iPhone",
+                          "Android Phone",
+                          "Android Tablet",
+                          "Home Center 2"
+                        ],
+                        "predefined": false,
+                        "version": "1.0",
+                        "url": "",
+                        "installed": false
+                      }
+                    ],
+                    "installed": 3
+                  }
+                ]
+              }
+            },
+            "example": {
+              "types": [
+                {
+                  "category": 0,
+                  "plugins": [
+                    {
+                      "type": "com.fibaro.alphatechFarfisa",
+                      "name": "IP Bell",
+                      "defaultMainDeviceName": "IP Bell",
+                      "description": "IP Bell – Zadbaj o bezpieczeństwo Twojego domu kilkoma kliknięciami integrując wideodomofon z systemem Fibaro. Plugin umożliwia sterowanie wideodomofonem IP Bell oraz podgląd obrazu z kamery wideodomofonu za pomocą interfejsu Fibaro.",
+                      "user": "Fibar Group S.A.",
+                      "compatibility": [
+                        "iPad",
+                        "iPhone",
+                        "Android Phone",
+                        "Android Tablet",
+                        "Home Center 2"
+                      ],
+                      "predefined": false,
+                      "version": "1.0",
+                      "url": "",
+                      "installed": false
+                    }
+                  ],
+                  "installed": 3
+                }
+              ]
+            }
+          },
+          "promo": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "image": {
+                  "type": "object",
+                  "properties": {
+                    "big": {
+                      "type": "string",
+                      "description": "big",
+                      "example": "/plugins/img/promo/com.fibaro.alarm-promoBig.png"
+                    },
+                    "small": {
+                      "type": "string",
+                      "description": "small",
+                      "example": "/plugins/img/promo/com.fibaro.alarm-promoSmall.png"
+                    }
+                  },
+                  "example": {
+                    "big": "/plugins/img/promo/com.fibaro.alarm-promoBig.png",
+                    "small": "/plugins/img/promo/com.fibaro.alarm-promoSmall.png"
+                  }
+                },
+                "url": {
+                  "type": "string",
+                  "description": "url",
+                  "example": "panels/fibaro-alarm.html"
+                }
+              },
+              "example": {
+                "image": {
+                  "big": "/plugins/img/promo/com.fibaro.alarm-promoBig.png",
+                  "small": "/plugins/img/promo/com.fibaro.alarm-promoSmall.png"
+                },
+                "url": "panels/fibaro-alarm.html"
+              }
+            },
+            "example": [
+              {
+                "image": {
+                  "big": "/plugins/img/promo/com.fibaro.alarm-promoBig.png",
+                  "small": "/plugins/img/promo/com.fibaro.alarm-promoSmall.png"
+                },
+                "url": "panels/fibaro-alarm.html"
+              }
+            ]
+          }
+        },
+        "example": {
+          "installed": [
+            {
+              "name": "com.fibaro.yrWeather",
+              "predefined": true
+            }
+          ],
+          "all": {
+            "types": [
+              {
+                "category": 0,
+                "plugins": [
+                  {
+                    "type": "com.fibaro.alphatechFarfisa",
+                    "name": "IP Bell",
+                    "defaultMainDeviceName": "IP Bell",
+                    "description": "IP Bell – Zadbaj o bezpieczeństwo Twojego domu kilkoma kliknięciami integrując wideodomofon z systemem Fibaro. Plugin umożliwia sterowanie wideodomofonem IP Bell oraz podgląd obrazu z kamery wideodomofonu za pomocą interfejsu Fibaro.",
+                    "user": "Fibar Group S.A.",
+                    "compatibility": [
+                      "iPad",
+                      "iPhone",
+                      "Android Phone",
+                      "Android Tablet",
+                      "Home Center 2"
+                    ],
+                    "predefined": false,
+                    "version": "1.0",
+                    "url": "",
+                    "installed": false
+                  }
+                ],
+                "installed": 3
+              }
+            ]
+          },
+          "promo": [
+            {
+              "image": {
+                "big": "/plugins/img/promo/com.fibaro.alarm-promoBig.png",
+                "small": "/plugins/img/promo/com.fibaro.alarm-promoSmall.png"
+              },
+              "url": "panels/fibaro-alarm.html"
+            }
+          ]
+        }
+      },
+      "PluginUpdateDto": {
+        "type": "object",
+        "required": [
+          "deviceId",
+          "componentName",
+          "propertyName",
+          "newValue"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "integer"
+          },
+          "componentName": {
+            "type": "string"
+          },
+          "propertyName": {
+            "type": "string"
+          },
+          "newValue": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "object"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "example": {
+          "deviceId": 7,
+          "componentName": "button_1",
+          "propertyName": "text",
+          "newValue": "Click me, please!"
+        }
+      },
+      "PluginsV2Dto": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PluginV2ElementDto"
+        }
+      },
+      "PluginV2ElementDto": {
+        "type": "object",
+        "properties": {
+          "compatibility": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultMainDeviceName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "manufacturer": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "icon": {
+            "$ref": "#/components/schemas/IconDto"
+          }
+        },
+        "example": {
+          "author": "author",
+          "name": "name",
+          "icon": {
+            "path": "path"
+          },
+          "description": "description",
+          "model": "model",
+          "type": "type",
+          "category": "category",
+          "compatibility": [
+            "compatibility"
+          ],
+          "defaultMainDeviceName": "defaultMainDeviceName",
+          "version": "version",
+          "url": "url",
+          "manufacturer": "manufacturer"
+        }
+      },
+      "IconDto": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "path": "path"
+        }
+      },
+      "PluginsDto": {
+        "type": "object",
+        "properties": {
+          "installed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstalledPluginElementDto"
+            }
+          },
+          "all": {
+            "$ref": "#/components/schemas/AllPluginsDto"
+          },
+          "promo": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginsPromoElementDto"
+            }
+          }
+        },
+        "example": {
+          "all": {
+            "types": [
+              {
+                "installed": 6.027456183070403,
+                "plugins": [
+                  {
+                    "installed": true,
+                    "name": "name",
+                    "description": "description",
+                    "type": "type",
+                    "defaultMainDeviceName": "defaultMainDeviceName",
+                    "user": "user",
+                    "compatibility": [
+                      "compatibility",
+                      "compatibility"
+                    ],
+                    "version": "version",
+                    "predefined": true,
+                    "url": "url"
+                  },
+                  {
+                    "installed": true,
+                    "name": "name",
+                    "description": "description",
+                    "type": "type",
+                    "defaultMainDeviceName": "defaultMainDeviceName",
+                    "user": "user",
+                    "compatibility": [
+                      "compatibility",
+                      "compatibility"
+                    ],
+                    "version": "version",
+                    "predefined": true,
+                    "url": "url"
+                  }
+                ],
+                "category": 0.8008281904610115
+              },
+              {
+                "installed": 6.027456183070403,
+                "plugins": [
+                  {
+                    "installed": true,
+                    "name": "name",
+                    "description": "description",
+                    "type": "type",
+                    "defaultMainDeviceName": "defaultMainDeviceName",
+                    "user": "user",
+                    "compatibility": [
+                      "compatibility",
+                      "compatibility"
+                    ],
+                    "version": "version",
+                    "predefined": true,
+                    "url": "url"
+                  },
+                  {
+                    "installed": true,
+                    "name": "name",
+                    "description": "description",
+                    "type": "type",
+                    "defaultMainDeviceName": "defaultMainDeviceName",
+                    "user": "user",
+                    "compatibility": [
+                      "compatibility",
+                      "compatibility"
+                    ],
+                    "version": "version",
+                    "predefined": true,
+                    "url": "url"
+                  }
+                ],
+                "category": 0.8008281904610115
+              }
+            ]
+          },
+          "promo": [
+            {
+              "image": {
+                "small": "small",
+                "big": "big"
+              },
+              "predefined": "predefined"
+            },
+            {
+              "image": {
+                "small": "small",
+                "big": "big"
+              },
+              "predefined": "predefined"
+            }
+          ],
+          "installed": [
+            {
+              "name": "name",
+              "predefined": true
+            },
+            {
+              "name": "name",
+              "predefined": true
+            }
+          ]
+        }
+      },
+      "IPCameraDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "manufacturer": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        }
+      },
+      "InstalledPluginsDto": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/InstalledPluginElementDto"
+        },
+        "example": [
+          {
+            "name": "com.fibaro.yrWeather",
+            "predefined": true
+          }
+        ]
+      },
+      "InstalledPluginElementDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Installed plugin name",
+            "example": "com.fibaro.yrWeather"
+          },
+          "predefined": {
+            "type": "boolean",
+            "description": "Describes whether the plugin is predefined in the system.",
+            "example": true
+          }
+        },
+        "example": {
+          "name": "com.fibaro.yrWeather",
+          "predefined": true
+        }
+      },
+      "AllPluginsDto": {
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginByCategoryDto"
+            }
+          }
+        },
+        "example": {
+          "types": [
+            {
+              "installed": 6.027456183070403,
+              "plugins": [
+                {
+                  "installed": true,
+                  "name": "name",
+                  "description": "description",
+                  "type": "type",
+                  "defaultMainDeviceName": "defaultMainDeviceName",
+                  "user": "user",
+                  "compatibility": [
+                    "compatibility",
+                    "compatibility"
+                  ],
+                  "version": "version",
+                  "predefined": true,
+                  "url": "url"
+                },
+                {
+                  "installed": true,
+                  "name": "name",
+                  "description": "description",
+                  "type": "type",
+                  "defaultMainDeviceName": "defaultMainDeviceName",
+                  "user": "user",
+                  "compatibility": [
+                    "compatibility",
+                    "compatibility"
+                  ],
+                  "version": "version",
+                  "predefined": true,
+                  "url": "url"
+                }
+              ],
+              "category": 0.8008281904610115
+            },
+            {
+              "installed": 6.027456183070403,
+              "plugins": [
+                {
+                  "installed": true,
+                  "name": "name",
+                  "description": "description",
+                  "type": "type",
+                  "defaultMainDeviceName": "defaultMainDeviceName",
+                  "user": "user",
+                  "compatibility": [
+                    "compatibility",
+                    "compatibility"
+                  ],
+                  "version": "version",
+                  "predefined": true,
+                  "url": "url"
+                },
+                {
+                  "installed": true,
+                  "name": "name",
+                  "description": "description",
+                  "type": "type",
+                  "defaultMainDeviceName": "defaultMainDeviceName",
+                  "user": "user",
+                  "compatibility": [
+                    "compatibility",
+                    "compatibility"
+                  ],
+                  "version": "version",
+                  "predefined": true,
+                  "url": "url"
+                }
+              ],
+              "category": 0.8008281904610115
+            }
+          ]
+        }
+      },
+      "PluginByCategoryDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "number"
+          },
+          "plugins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginDto"
+            }
+          },
+          "installed": {
+            "type": "number"
+          }
+        },
+        "example": {
+          "installed": 6.027456183070403,
+          "plugins": [
+            {
+              "installed": true,
+              "name": "name",
+              "description": "description",
+              "type": "type",
+              "defaultMainDeviceName": "defaultMainDeviceName",
+              "user": "user",
+              "compatibility": [
+                "compatibility",
+                "compatibility"
+              ],
+              "version": "version",
+              "predefined": true,
+              "url": "url"
+            },
+            {
+              "installed": true,
+              "name": "name",
+              "description": "description",
+              "type": "type",
+              "defaultMainDeviceName": "defaultMainDeviceName",
+              "user": "user",
+              "compatibility": [
+                "compatibility",
+                "compatibility"
+              ],
+              "version": "version",
+              "predefined": true,
+              "url": "url"
+            }
+          ],
+          "category": 0.8008281904610115
+        }
+      },
+      "PluginDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "defaultMainDeviceName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "compatibility": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "predefined": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "installed": true,
+          "name": "name",
+          "description": "description",
+          "type": "type",
+          "defaultMainDeviceName": "defaultMainDeviceName",
+          "user": "user",
+          "compatibility": [
+            "compatibility",
+            "compatibility"
+          ],
+          "version": "version",
+          "predefined": true,
+          "url": "url"
+        }
+      },
+      "PluginsPromoDto": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PluginsPromoElementDto"
+        }
+      },
+      "PluginsPromoElementDto": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "$ref": "#/components/schemas/PluginsPromoElementImageDto"
+          },
+          "predefined": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "image": {
+            "small": "small",
+            "big": "big"
+          },
+          "predefined": "predefined"
+        }
+      },
+      "PluginsPromoElementImageDto": {
+        "type": "object",
+        "properties": {
+          "big": {
+            "type": "string"
+          },
+          "small": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "small": "small",
+          "big": "big"
+        }
+      },
+      "UiEventType": {
+        "type": "string",
+        "enum": [
+          "onToggled",
+          "onReleased",
+          "onChanged",
+          "onLongPressDown",
+          "onLongPressReleased",
+          "onTabChanged",
+          "onToggleOn",
+          "onToggleOff"
+        ]
+      },
+      "CreateChildDeviceDto": {
+        "type": "object",
+        "required": [
+          "parentId",
+          "type",
+          "name"
+        ],
+        "properties": {
+          "parentId": {
+            "type": "integer",
+            "description": "Parent id",
+            "example": 1
+          },
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "type"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name",
+            "example": "name"
+          },
+          "initialProperties": {
+            "type": "object",
+            "description": "Initial properties",
+            "example": {
+              "power": 11,
+              "value": "rain"
+            }
+          },
+          "initialInterfaces": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Initial interface",
+              "example": "power"
+            },
+            "example": [
+              "power",
+              "light"
+            ]
+          }
+        }
+      },
+      "UpdatePropertyDto": {
+        "type": "object",
+        "required": [
+          "deviceId",
+          "componentName",
+          "propertyName",
+          "newValue"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "integer"
+          },
+          "propertyName": {
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "object"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "example": {
+          "deviceId": 7,
+          "propertyName": "text",
+          "newValue": "Click me, please!"
+        }
+      },
+      "ZwaveNodeRemovedEventDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "ZwaveNodeRemovedEvent"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "nodeId"
+            ],
+            "properties": {
+              "nodeId": {
+                "type": "integer",
+                "description": "Node id",
+                "example": 1
+              }
+            },
+            "example": {
+              "nodeId": 1
+            }
+          }
+        },
+        "example": {
+          "type": "ZwaveNodeRemovedEvent",
+          "data": {
+            "nodeId": 1
+          }
+        }
+      },
+      "CentralSceneEventDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "source",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "centralSceneEvent"
+          },
+          "source": {
+            "type": "integer",
+            "description": "Device id",
+            "example": 1
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "keyAttribute",
+              "keyId"
+            ],
+            "properties": {
+              "keyAttribute": {
+                "type": "string",
+                "description": "Key attribute",
+                "example": "kind-hearted"
+              },
+              "keyId": {
+                "type": "integer",
+                "description": "Key id",
+                "example": 1
+              }
+            },
+            "example": {
+              "keyAttribute": "kind-hearted",
+              "keyId": 1
+            }
+          }
+        },
+        "example": {
+          "type": "centralSceneEvent",
+          "source": 1,
+          "data": {
+            "keyAttribute": "kind-hearted",
+            "keyId": 1
+          }
+        }
+      },
+      "DeviceFirmwareUpdateEventDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "source",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "deviceFirmwareUpdateEvent"
+          },
+          "source": {
+            "type": "integer",
+            "description": "Device id",
+            "example": 1
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "description": "Status",
+                "example": "alive"
+              },
+              "progress": {
+                "type": "integer",
+                "description": "Progress, default 0",
+                "example": 0
+              },
+              "info": {
+                "type": "string",
+                "description": "Info",
+                "example": "info"
+              }
+            },
+            "example": {
+              "status": "alive",
+              "progress": 0,
+              "info": "info"
+            }
+          }
+        },
+        "example": {
+          "type": "deviceFirmwareUpdateEvent",
+          "source": 1,
+          "data": {
+            "status": "alive",
+            "progress": 0,
+            "info": "info"
+          }
+        }
+      },
+      "SceneActivationEventDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "source",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "sceneActivationEvent"
+          },
+          "source": {
+            "type": "integer",
+            "description": "Device id",
+            "example": 1
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "sceneId",
+              "name"
+            ],
+            "properties": {
+              "sceneId": {
+                "type": "integer",
+                "description": "Scene id",
+                "example": 1
+              },
+              "name": {
+                "type": "string",
+                "description": "Name",
+                "example": "name"
+              }
+            },
+            "example": {
+              "sceneId": 1,
+              "name": "name"
+            }
+          }
+        },
+        "example": {
+          "type": "sceneActivationEvent",
+          "source": 1,
+          "data": {
+            "sceneId": 1,
+            "name": "name"
+          }
+        }
+      },
+      "ZwaveNetworkResetEventDto": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "ZwaveNetworkResetEvent"
+          }
+        },
+        "example": {
+          "type": "ZwaveNetworkResetEvent"
+        }
+      },
+      "AccessControlEventDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "source",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "accessControlEvent"
+          },
+          "source": {
+            "type": "integer",
+            "description": "Device id",
+            "example": 1
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "type",
+              "status",
+              "description"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Keypad",
+                  "Manual",
+                  "Remote"
+                ],
+                "description": "Type",
+                "example": "Keypad"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "Jammed",
+                  "Lock",
+                  "Unlock"
+                ],
+                "description": "Status",
+                "example": "Lock"
+              },
+              "description": {
+                "type": "string",
+                "description": "Description",
+                "example": "Sample description"
+              },
+              "name": {
+                "type": "string",
+                "description": "Name",
+                "example": "sampleName"
+              },
+              "userId": {
+                "type": "integer",
+                "description": "User id",
+                "example": 2
+              }
+            },
+            "example": {
+              "type": "Keypad",
+              "status": "Lock",
+              "description": "Sample description",
+              "name": "sampleName",
+              "userId": 2
+            }
+          }
+        },
+        "example": {
+          "type": "accessControlEvent",
+          "source": 0,
+          "data": {
+            "type": "Keypad",
+            "status": "Lock",
+            "description": "Sample description",
+            "name": "sampleName",
+            "userId": 2
+          }
+        }
+      },
+      "VideoGateIncomingCallEventDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "VideoGateIncomingCallEvent"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Id",
+                "example": 0
+              }
+            },
+            "example": {
+              "id": 0
+            }
+          }
+        },
+        "example": {
+          "type": "VideoGateIncomingCallEvent",
+          "data": {
+            "id": 0
+          }
+        }
+      },
+      "ZwaveDeviceParametersChangedEventDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "source"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "ZwaveDeviceParametersChangedEvent"
+          },
+          "source": {
+            "type": "integer",
+            "description": "Device id",
+            "example": 0
+          }
+        },
+        "example": {
+          "type": "ZwaveDeviceParametersChangedEvent",
+          "source": 0
+        }
+      },
+      "GeofenceEventDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "userId",
+          "deviceId",
+          "locationId",
+          "geofenceAction",
+          "timestamp"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type",
+            "example": "GeofenceEvent"
+          },
+          "userId": {
+            "type": "integer",
+            "description": "User id",
+            "example": 2
+          },
+          "deviceId": {
+            "type": "integer",
+            "description": "Device id",
+            "example": 0
+          },
+          "locationId": {
+            "type": "integer",
+            "description": "Location id",
+            "example": 10
+          },
+          "geofenceAction": {
+            "type": "string",
+            "description": "Geofence action",
+            "example": "goGoGadgetArms"
+          },
+          "timestamp": {
+            "type": "integer",
+            "description": "timestamp",
+            "example": 676024800
+          }
+        },
+        "example": {
+          "type": "GeofenceEvent",
+          "userId": 2,
+          "deviceId": 0,
+          "locationId": 10,
+          "geofenceAction": "goGoGadgetArms",
+          "timestamp": 676024800
+        }
+      },
+      "PluginsInterfaceParamDto": {
+        "type": "object",
+        "required": [
+          "action",
+          "deviceId",
+          "interfaces"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "delete"
+            ],
+            "description": "Action",
+            "example": "add"
+          },
+          "deviceId": {
+            "type": "integer",
+            "description": "Device id",
+            "example": 0
+          },
+          "interfaces": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Interface to add or remove",
+              "example": "power"
+            },
+            "description": "Interfaces to add or remove",
+            "example": [
+              "lignt",
+              "power"
+            ]
+          }
+        },
+        "example": {
+          "action": "add",
+          "deviceId": 0,
+          "interfaces": [
+            "lignt",
+            "power"
+          ]
+        }
+      },
+      "RestartPluginRequestDto": {
+        "type": "object",
+        "required": [
+          "deviceId"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "integer",
+            "description": "Device id",
+            "example": 0
+          }
+        },
+        "example": {
+          "deviceId": 0
+        }
+      },
+      "RestartPluginResponseDto": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "boolean",
+            "description": "Request status",
+            "example": true
+          }
+        },
+        "example": {
+          "status": true
+        }
+      }
+    }
+  }
+}

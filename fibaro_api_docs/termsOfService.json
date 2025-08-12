@@ -1,0 +1,67 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Terms of service API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/tos": {
+      "get": {
+        "tags": ["termsOfService"],
+        "summary": "Terms fo service (no auth required).",
+        "operationId": "getTermsOfService",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "description": "Language of terms of service. If parameter is not provided, en will be used.",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "default": "en"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns text for terms of service and if it is accepted. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermsOfServiceDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TermsOfServiceDto": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "accepted": false,
+          "text": "The Gateway Software is constantly developed and improved, particularly taking into account users' comments on the functionality of the software, as well as in order to fix errors and to enable configuration of the Gateway with existing and new peripheral devices, manufactured by the Producer and by other entities ('Peripheral Devices')...."
+        }
+      }
+    }
+  }
+}

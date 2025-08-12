@@ -9,7 +9,7 @@ import logging
 import asyncio
 import json
 import requests  # For synchronous requests
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import aiohttp
 from eplua.lua_bindings import export_to_lua, get_global_engine, python_to_lua_table, lua_to_python_table
 
@@ -168,7 +168,7 @@ def http_request_sync(options: Any) -> Any:
         response_json = None
         try:
             response_json = response.json()
-        except:
+        except Exception:
             pass
         
         # Create result

@@ -299,7 +299,7 @@ class SynchronousTCPManager:
             for conn_id, sock in list(self._sockets.items()):
                 try:
                     sock.close()
-                except:
+                except Exception:
                     pass  # Ignore errors during cleanup
             self._sockets.clear()
             

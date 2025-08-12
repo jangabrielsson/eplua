@@ -1,6 +1,7 @@
 -- _PY is a bridge table with functions used to communicate between Lua and Python.
 -- It is initialized in the EPLua engine and provides access to timer functions.
 local _PY = _PY or {}
+local _print = print
 
 -- Use config for cross-platform paths
 local config = _PY.config or {}
@@ -25,7 +26,7 @@ package.path = initpath .. current_path
 if config.debugger then 
   local success, mobdebug = pcall(require, 'mobdebug')
   if success then
-    if config.debugger then mobdebug.logging(true) end
+    if config.debugger_logging then mobdebug.logging(true) end
     
     -- Set timeouts to prevent hanging
     mobdebug.yieldtimeout = 0.5  -- 500ms timeout for yield operations
@@ -46,21 +47,24 @@ local callbacks = {}
 local callbackID = 0
 
 -- Register a callback and return its ID
-function _PY.registerCallback(callback, persistent)
+function _PY.registerCallback(callback, persistent, system)
   callbackID = callbackID + 1
   callbacks[callbackID] = { 
     type = "callback", 
     callback = callback,
+    system = system or false,
     persistent = persistent or false  -- Default to non-persistent
   }
   return callbackID
 end
 
-function _PY.setTimeout(callback, ms)
+function _PY.setTimeout(callback, ms, options)
+  options = options or {}
   callbackID = callbackID + 1
   callbacks[callbackID] = { 
     type = "timeout", 
     callback = callback, 
+    system = options.system or false,
     ref = _PY.set_timeout(callbackID, ms) 
   }
   return callbackID
@@ -137,8 +141,8 @@ end
 -- Get the count of pending callbacks (for CLI keep-alive logic)
 function _PY.getPendingCallbackCount()
   local count = 0
-  for _ in pairs(callbacks) do
-    count = count + 1
+  for _,v in pairs(callbacks) do
+    count = count + (v.system and 0 or 1)
   end
   return count
 end
@@ -181,8 +185,8 @@ function _PY.mainLuaFile(filename)
   local co = coroutine.create(loadAndRun) -- Always run in a coroutine
   local ok, err = coroutine.resume(co)
   if not ok then
-    print(err)
-    print(debug.traceback(co, "..while running "..filename))
+    _print(err)
+    _print(debug.traceback(co, "..while running "..filename))
   end
 end
 
@@ -192,11 +196,14 @@ function _PY.luaFragment(str)
   if not func then
     error("Error loading Lua fragment: " .. err)
   else
+    local p = print -- kind of a hack to avoid clientPrint for upstart fragments...
+    print = _print
     local res = {pcall(func)}
+    print = p
     if not res[1] then
       error("Error executing Lua fragment: " .. res[2])
     end
-    print(table.unpack(res,2))
+    if #res > 1 then  _print(table.unpack(res,2)) end
   end
 end
 
@@ -330,10 +337,69 @@ function _PY.threadRequest(id, script, isJson)
   end
 end
 
+function coroutine.wrapdebug(func,error_handler)
+  local co = coroutine.create(func)
+  return function(...)
+    local res = {coroutine.resume(co, ...)}
+    if res[1] then
+      return table.unpack(res, 2)  -- Return all results except the first (true)
+    else
+      -- Handle error in coroutine
+      local err,traceback = res[2], debug.traceback(co)
+      if error_handler then
+        error_handler(err, traceback)
+      else
+        print(err, traceback)
+      end
+    end
+  end
+end
+
+-- redefine print to send to socket listeners
+function print(...)
+  local args = {...}
+  local result = {}
+  for i=1,#args do result[#result+1] = tostring(args[i]) end
+  local resStr = table.concat(result," ")
+  --resStr = os.date("[%m-%d %H:%M:%S]: ") .. resStr
+  _PY.clientPrint(-1,resStr) -- send to all socket listeners
+  --_PY.clientPrint(0,resStr)  -- send to stdout ?
+end
+
+function _PY.clientExecute(clientId,code)
+  local func, err = load(code)
+  if not func then _PY.clientPrint(clientId,err) return end
+  local res = {pcall(func)}
+  if not res[1] then _PY.clientPrint(clientId,res[2]) return end
+  if #res > 1 then print(table.unpack(res,2)) end
+end
+
+function _PY.fibaroApiHook(method, path, data)
+  -- Return service unavailable - Fibaro API not loaded
+  return nil, 503
+end
+
+local runFor = tonumber(_PY.config.runFor)
+if runFor then
+  if runFor > 0 then
+    _PY.setTimeout(function() os.exit() end, runFor * 1000, {system = true}) -- Kill after runFor seconds, if still running
+  elseif runFor == 0 then
+    _PY.setTimeout(function() end, math.huge) -- Keep running indefinitely...
+  elseif runFor < 0 then
+    _PY.setTimeout(function() os.exit() end, (-runFor) * 1000) -- Kill exactly runFor seconds
+  end
+end
+
 ----------------- Import standard libraries ----------------
 net = require("net")
 require("timers")
+os.getenv = _PY.dotgetenv
+if config.fibaro then
+  require("fibaro")
+end
 
+
+--------------------------------- Test functions ---------------------------------
 -- Test functions for JSON function calling
 function greet(name)
   return "Hello, " .. tostring(name) .. "!"

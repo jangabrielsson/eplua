@@ -17,6 +17,7 @@ dependencies = [
     "aiomqtt>=2.0.0",  # MQTT client support
     "fastapi>=0.100.0",
     "uvicorn>=0.23.0",
+    "httpx>=0.24.0",  # For FastAPI testing
     "requests>=2.28.0",
     "tkhtmlview>=0.3.0",  # HTML rendering in tkinter (works with Tcl 9.x)
 ]

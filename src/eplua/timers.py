@@ -23,7 +23,7 @@ class TimerInfo:
     callback: Callable
     task: Optional[asyncio.Task] = None
     created_at: float = None
-    
+
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = time.time()
@@ -32,41 +32,41 @@ class TimerInfo:
 class AsyncTimerManager:
     """
     Manages async timers that can be created and controlled from Lua scripts.
-    
+
     Provides only setTimeout functionality - setInterval is implemented in Lua
     by chaining setTimeout calls.
     """
-    
+
     def __init__(self):
         self._timers: Dict[str, TimerInfo] = {}
         self._running = False
-        
+
     async def start(self):
         """Start the timer manager."""
         self._running = True
         logger.info("AsyncTimerManager started")
-        
+
     async def stop(self):
         """Stop the timer manager and cancel all timers."""
         self._running = False
         await self.clear_all_timers()
         logger.info("AsyncTimerManager stopped")
-        
+
     def set_timeout(self, delay_ms: int, callback: Callable, *args, **kwargs) -> str:
         """
         Set a one-time timer (like JavaScript setTimeout).
-        
+
         Args:
             delay_ms: Delay in milliseconds
             callback: Function to call when timer fires
             *args, **kwargs: Arguments to pass to callback
-            
+
         Returns:
             Timer ID that can be used to cancel the timer
         """
         delay_seconds = delay_ms / 1000.0
         timer_id = str(uuid.uuid4())
-        
+
         async def timer_task():
             try:
                 await asyncio.sleep(delay_seconds)
@@ -79,7 +79,7 @@ class AsyncTimerManager:
                 logger.debug(f"Timeout timer {timer_id} cancelled")
             except Exception as e:
                 logger.error(f"Error in timeout timer {timer_id}: {e}")
-                
+
         task = asyncio.create_task(timer_task())
         timer_info = TimerInfo(
             timer_id=timer_id,
@@ -87,18 +87,18 @@ class AsyncTimerManager:
             callback=callback,
             task=task
         )
-        
+
         self._timers[timer_id] = timer_info
         logger.debug(f"Created timeout timer {timer_id} with delay {delay_ms}ms")
         return timer_id
-        
+
     def clear_timer(self, timer_id: str) -> bool:
         """
         Clear a specific timer (like JavaScript clearTimeout).
-        
+
         Args:
             timer_id: ID of the timer to clear
-            
+
         Returns:
             True if timer was found and cleared, False otherwise
         """
@@ -109,25 +109,25 @@ class AsyncTimerManager:
             logger.debug(f"Cleared timer {timer_id}")
             return True
         return False
-        
+
     async def clear_all_timers(self):
         """Clear all timers."""
         timer_ids = list(self._timers.keys())
         for timer_id in timer_ids:
             self.clear_timer(timer_id)
-        
+
         # Wait for all tasks to complete cancellation
         tasks = [info.task for info in self._timers.values() if info.task]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-            
+
         self._timers.clear()
         logger.debug("Cleared all timers")
-        
+
     def get_timer_count(self) -> int:
         """Get the number of active timers."""
         return len(self._timers)
-        
+
     def get_timer_info(self, timer_id: str) -> Optional[Dict[str, Any]]:
         """Get information about a specific timer."""
         timer_info = self._timers.get(timer_id)
@@ -139,7 +139,7 @@ class AsyncTimerManager:
                 "running": timer_info.task and not timer_info.task.done()
             }
         return None
-        
+
     async def _safe_call_callback(self, callback: Callable, *args, **kwargs):
         """Safely call a callback function, handling both sync and async functions."""
         try:

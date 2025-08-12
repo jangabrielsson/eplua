@@ -80,7 +80,7 @@ def lua_to_python_table(lua_table: Any) -> Any:
                     return [temp_dict[k] for k in keys]
             
             return temp_dict
-        except:
+        except Exception:
             # If conversion fails, return string representation
             return str(lua_table)
     else:
@@ -221,6 +221,17 @@ class LuaBindings:
             import time
             time.sleep(seconds)
             
+        @export_to_lua("python_2_lua_table")
+        def python_2_lua_table(data: Any) -> Any:
+            """Convert Python data to Lua table."""
+            return python_to_lua_table(data)
+        
+        @export_to_lua("os.exit")
+        def os_exit(code: int = 0) -> None:
+            """Exit the EPLua process with the specified exit code"""
+            import os
+            os._exit(code)  # Use _exit to avoid cleanup issues
+            
         @export_to_lua("get_platform")
         def get_platform() -> Any:
             """Get the current platform information as Lua table."""
@@ -311,6 +322,335 @@ class LuaBindings:
                 return None, str(e)
             except Exception as e:
                 return None, f"Unexpected error: {str(e)}"
+        
+        @export_to_lua("file_exists")
+        def fs_file_exists(filename: str) -> bool:
+            """
+            Check if a file exists.
+            """
+            import os
+            return os.path.exists(filename)
+        
+        @export_to_lua("fwrite_file")
+        def fwrite_file(filename: str, data: str) -> bool:
+            """
+            Write data to a file.
+            """
+            with open(filename, 'w') as f:
+                f.write(data)
+            return True
+        
+        @export_to_lua("fread_file")
+        def fread_file(filename: str) -> str:
+            """
+            Read data from a file.
+            """
+            with open(filename, 'r') as f:
+                return f.read()
+        
+        @export_to_lua("base64_encode")
+        def base64_encode(data: str) -> str:
+            """
+            Encode a string to base64.
+            """
+            import base64
+            return base64.b64encode(data.encode('utf-8')).decode('utf-8')
+        
+        @export_to_lua("base64_decode")
+        def base64_decode(data: str) -> str:
+            """
+            Decode a base64-encoded string.
+            """
+            import base64
+            return base64.b64decode(data.encode('utf-8')).decode('utf-8')
+        
+        @export_to_lua("milli_time")
+        def milli_time() -> float:
+            """
+            Get the current time in seconds with milliseconds precision.
+            """
+            import time
+            return time.time()
+        
+        @export_to_lua("dotgetenv")
+        def dotgetenv(key: str, default: str = None) -> str:
+            """
+            Read environment variables from .env files and system environment.
+            
+            This function reads .env files in the following order:
+            1. Current working directory (.env)
+            2. Home directory (~/.env)
+            3. System environment variables
+            
+            Args:
+                key: The environment variable name to look up
+                default: Default value if the key is not found (optional)
+                
+            Returns:
+                The value of the environment variable, or the default value if not found
+            """
+            import os
+            from pathlib import Path
+            
+            # First check system environment variables
+            value = os.getenv(key)
+            if value is not None:
+                return value
+            
+            # Check .env files
+            env_files = []
+            
+            # Check current working directory
+            cwd_env = Path.cwd() / ".env"
+            if cwd_env.exists():
+                env_files.append(cwd_env)
+            
+            # Check home directory
+            home_env = Path.home() / ".env"
+            if home_env.exists():
+                env_files.append(home_env)
+            
+            # Read .env files in order (cwd first, then home)
+            for env_file in env_files:
+                try:
+                    with open(env_file, 'r', encoding='utf-8') as f:
+                        for line_num, line in enumerate(f, 1):
+                            line = line.strip()
+                            
+                            # Skip empty lines and comments
+                            if not line or line.startswith('#'):
+                                continue
+                            
+                            # Parse key=value format
+                            if '=' in line:
+                                env_key, env_value = line.split('=', 1)
+                                env_key = env_key.strip()
+                                env_value = env_value.strip()
+                                
+                                # Remove quotes if present
+                                if (env_value.startswith('"') and env_value.endswith('"')) or \
+                                   (env_value.startswith("'") and env_value.endswith("'")):
+                                    env_value = env_value[1:-1]
+                                
+                                if env_key == key:
+                                    return env_value
+                                    
+                except Exception as e:
+                    logger.warning(f"Error reading .env file {env_file}: {e}")
+                    continue
+            
+            # Return default value if not found
+            return default
+        
+        @export_to_lua("start_telnet_server")
+        def start_telnet_server(port=8080):
+            """Start async telnet server for remote REPL access"""
+            import asyncio
+            
+            # Store active connections and server state
+            self.telnet_clients = []
+            self.telnet_server_running = False
+            self.telnet_server_task = None
+            
+            async def handle_client(reader, writer):
+                """Handle individual client connection asynchronously"""
+                client_address = writer.get_extra_info('peername')
+                logger.info(f"[Telnet] Client connected: {client_address}")
+                
+                try:
+                    # Send welcome message (user-friendly, no mention of telnet)
+                    welcome_msg = "🚀 EPLua Interactive REPL\nType Lua commands and press Enter to execute\nType 'exit' or 'quit' to disconnect\n"
+                    writer.write(welcome_msg.encode('utf-8'))
+                    await writer.drain()
+                    
+                    while self.telnet_server_running:
+                        try:
+                            # Receive command from client
+                            data = await reader.read(1024)
+                            if not data:
+                                break  # Client disconnected
+                            
+                            command = data.decode('utf-8').strip()
+                            if not command:
+                                continue
+                            
+                            # Handle exit commands
+                            if command.lower() in ['exit', 'quit']:
+                                writer.write("👋 Goodbye!\n".encode('utf-8'))
+                                await writer.drain()
+                                # Exit the entire EPLua process
+                                import os
+                                os._exit(0)
+                                break
+                            
+                            # Execute Lua command using decoupled architecture
+                            try:
+                                # Call Lua's _PY.clientExecute which handles execution and output
+                                lua_globals = self.engine._lua.globals()
+                                if "_PY" in lua_globals and "clientExecute" in lua_globals["_PY"]:
+                                    lua_globals["_PY"]["clientExecute"](1, command)  # client_id = 1 for now
+                                else:
+                                    # Fallback: execute directly in Lua
+                                    result = self.engine._lua.execute(command)
+                                    if result is not None:
+                                        writer.write(f"{result}\n".encode('utf-8'))
+                                        await writer.drain()
+                            except Exception as e:
+                                # Fallback error handling
+                                error_msg = f"Error: {e}\n"
+                                writer.write(error_msg.encode('utf-8'))
+                                await writer.drain()
+                            
+                        except Exception as e:
+                            logger.error(f"[Telnet] Client error: {e}")
+                            break
+                            
+                except Exception as e:
+                    logger.error(f"[Telnet] Client handling error: {e}")
+                finally:
+                    logger.info(f"[Telnet] Client disconnected: {client_address}")
+                    try:
+                        writer.close()
+                        await writer.wait_closed()
+                    except Exception:
+                        pass
+                    if (reader, writer) in self.telnet_clients:
+                        self.telnet_clients.remove((reader, writer))
+            
+            async def telnet_server_loop():
+                """Main async server loop"""
+                try:
+                    # Create async server
+                    server = await asyncio.start_server(
+                        handle_client, 
+                        'localhost', 
+                        port,
+                        reuse_address=True
+                    )
+                    
+                    logger.info(f"[Telnet] Server started on localhost:{port}")
+                    logger.info("[Telnet] Waiting for connections...")
+                    
+                    self.telnet_server_running = True
+                    
+                    async with server:
+                        await server.serve_forever()
+                        
+                except Exception as e:
+                    logger.error(f"[Telnet] Server startup error: {e}")
+                finally:
+                    # Cleanup
+                    self.telnet_server_running = False
+                    logger.info("[Telnet] Server stopped")
+            
+            # Start server as an asyncio task
+            loop = asyncio.get_event_loop()
+            self.telnet_server_task = loop.create_task(telnet_server_loop())
+            
+            return f"Async telnet server started on localhost:{port}"
+        
+        @export_to_lua("stop_telnet_server")
+        def stop_telnet_server():
+            """Stop the async telnet server"""
+            if hasattr(self, 'telnet_server_running') and self.telnet_server_running:
+                self.telnet_server_running = False
+                if hasattr(self, 'telnet_server_task') and self.telnet_server_task:
+                    try:
+                        self.telnet_server_task.cancel()
+                    except Exception:
+                        pass
+                return "Async telnet server stopped"
+            else:
+                return "Telnet server not running"
+        
+        @export_to_lua("get_telnet_status")
+        def get_telnet_status():
+            """Get telnet server status"""
+            if hasattr(self, 'telnet_server_running') and self.telnet_server_running:
+                client_count = len(self.telnet_clients) if hasattr(self, 'telnet_clients') else 0
+                return f"Running - {client_count} clients connected"
+            else:
+                return "Not running"
+        
+        @export_to_lua("clientExecute")
+        def client_execute(client_id: int, code: str) -> None:
+            """Execute Lua code in client-specific context"""
+            # This function is called from Lua's _PY.clientExecute
+            # The actual execution is handled by Lua, this just provides the interface
+            pass
+        
+        @export_to_lua("clientPrint")
+        def client_print(client_id: int, message: str) -> None:
+            """Send output to specific client(s) or stdout"""
+            import asyncio
+            
+            if client_id == 0 or client_id is None:
+                # Print to stdout
+                print(message, flush=True)
+            elif client_id == -1:
+                # Broadcast to all telnet clients, fall back to stdout if no clients
+                has_clients = False
+                if hasattr(self, 'telnet_server_running') and self.telnet_server_running:
+                    if hasattr(self, 'telnet_clients') and self.telnet_clients:
+                        has_clients = True
+                        disconnected_clients = []
+                        for reader, writer in self.telnet_clients:
+                            try:
+                                # Only add newline if message doesn't already end with one
+                                if message.endswith('\n'):
+                                    writer.write(message.encode('utf-8'))
+                                else:
+                                    writer.write(f"{message}\n".encode('utf-8'))
+                                # Schedule the drain operation
+                                loop = asyncio.get_event_loop()
+                                loop.create_task(writer.drain())
+                            except Exception:
+                                # Client disconnected
+                                disconnected_clients.append((reader, writer))
+                        
+                        # Remove disconnected clients
+                        for reader, writer in disconnected_clients:
+                            try:
+                                writer.close()
+                                loop = asyncio.get_event_loop()
+                                loop.create_task(writer.wait_closed())
+                            except Exception:
+                                pass
+                            self.telnet_clients.remove((reader, writer))
+                
+                # If no telnet clients are connected, print to stdout
+                if not has_clients:
+                    print(message, flush=True)
+            elif client_id > 0:
+                # Send to specific client
+                if hasattr(self, 'telnet_clients') and self.telnet_clients:
+                    # Find client by ID (we'll need to track client IDs)
+                    # For now, broadcast to all clients
+                    # TODO: Implement client ID tracking
+                    disconnected_clients = []
+                    for reader, writer in self.telnet_clients:
+                        try:
+                            # Only add newline if message doesn't already end with one
+                            if message.endswith('\n'):
+                                writer.write(message.encode('utf-8'))
+                            else:
+                                writer.write(f"{message}\n".encode('utf-8'))
+                            # Schedule the drain operation
+                            loop = asyncio.get_event_loop()
+                            loop.create_task(writer.drain())
+                        except Exception:
+                            # Client disconnected
+                            disconnected_clients.append((reader, writer))
+                    
+                    # Remove disconnected clients
+                    for reader, writer in disconnected_clients:
+                        try:
+                            writer.close()
+                            loop = asyncio.get_event_loop()
+                            loop.create_task(writer.wait_closed())
+                        except Exception:
+                            pass
+                        self.telnet_clients.remove((reader, writer))
         
     def get_all_bindings(self) -> Dict[str, Any]:
         """

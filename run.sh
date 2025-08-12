@@ -15,5 +15,6 @@ else
     echo "ℹ️ .venv not found, using system Python"
 fi
 
-# Run with Python module syntax
-python -m eplua.cli "$@"
+# Create a new session and process group to ensure proper cleanup
+# This ensures that when VSCode kills the process, all child processes are also killed
+exec python -u -m eplua.cli "$@"

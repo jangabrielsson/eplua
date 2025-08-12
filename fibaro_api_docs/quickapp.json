@@ -1,0 +1,650 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "QuickApp API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/quickApp": {
+      "post": {
+        "tags": ["quickApp"],
+        "summary": "Create QuickApp device",
+        "description": "Create QuickApp Device by CreateQuickAppRequest data",
+        "operationId": "createQuickApp",
+        "requestBody": {
+          "description": "Object with new QuickApp device data",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuickAppRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "QuickApp created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quickApp/availableTypes": {
+      "get": {
+        "tags": ["quickApp"],
+        "summary": "Get quick apps available types",
+        "description": "Returns device types that can be used when creating new quick app.",
+        "operationId": "getQuickAppTypes",
+        "responses": {
+          "200": {
+            "description": "List of quick app types. Type field should be used on quick app creation. Label field is just a friendly name, that can be used on UI.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuickAvailableTypeDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quickApp/export/{deviceId}": {
+      "get": {
+        "tags": ["quickApp"],
+        "summary": "Export QuickApp Device",
+        "description": "Export QuickApp Device to .fqa file",
+        "deprecated": true,
+        "operationId": "exportFile",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "description": "Device Id",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QuickApp Device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["quickApp"],
+        "summary": "Export QuickApp Device",
+        "description": "Export QuickApp Device to .fqa or .fqax (encrypted) file. Exporting encrypted quick app requires internet connection.",
+        "operationId": "exportEncryptedFile",
+        "requestBody": {
+          "description": "Body is optional. For the request with an empty body, open source quick app will be exported.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickAppExportRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "description": "Device Id",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QuickApp file",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "400": {
+            "description": "Bad request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HCErrorDto"
+                },
+                "example": {
+                  "type": "ERROR",
+                  "reason": "Bad request",
+                  "message": "encrypted proeprty needs to be true, to provide serialNumbers."
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No internet connection or the gateway is not connected to the remote access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HCErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quickApp/import": {
+      "post": {
+        "tags": ["quickApp"],
+        "summary": "Import QuickApp Device",
+        "description": "Import and create QuickApp device from .fqa file",
+        "operationId": "importFile",
+        "requestBody": {
+          "description": "FQA File",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "roomId": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "QuickApp created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Wrong request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HCErrorDto"
+                },
+                "example": {
+                  "type": "ERROR",
+                  "reason": "Cannot import quick app file",
+                  "message": ""
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Quick app was not created for this gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HCErrorDto"
+                },
+                "example": {
+                  "type": "ERROR",
+                  "reason": "Something Went Wrong!",
+                  "message": "A problem occurred while trying to perform the operation. Your device's Serial Number is not on the list to allow you import this file."
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No internet connection or the gateway is not connected to the remote access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HCErrorDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quickApp/{deviceId}/files": {
+      "get": {
+        "tags": ["quickApp"],
+        "summary": "Get QuickApp Source Files",
+        "description": "Get files list without content",
+        "operationId": "getFiles",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "description": "ID id device",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The list of files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuickAppFile"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["quickApp"],
+        "summary": "Create QuickApp Source File",
+        "description": "Create quickapp file",
+        "operationId": "createFile",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "description": "ID id device",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Quickapp LUA File",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickAppFile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Created file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickAppFile"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["quickApp"],
+        "summary": "Update QuickApp Source Files",
+        "description": "Update quickapp files",
+        "operationId": "updateFiles",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "description": "ID id device",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Quickapp LUA File List",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QuickAppFileDetails"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The list of files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuickAppFile"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quickApp/{deviceId}/files/{fileName}": {
+      "get": {
+        "tags": ["quickApp"],
+        "summary": "Get QuickApp Source File",
+        "description": "Get file details",
+        "operationId": "getFileDetails",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "description": "ID id device",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "fileName",
+            "in": "path",
+            "description": "File name",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Single file details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickAppFileDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["quickApp"],
+        "summary": "Update QuickApp Source File",
+        "description": "Update quickapp file",
+        "operationId": "updateFile",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "description": "ID id device",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "fileName",
+            "in": "path",
+            "description": "File name",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Quickapp LUA File, all fields are optional. isMain filed can't be changed ",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickAppFileDetails"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Changed file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickAppFileDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["quickApp"],
+        "summary": "Delete QuickApp Source File",
+        "description": "Delete file, main file can't be deleted",
+        "operationId": "deleteFile",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "description": "ID id device",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "fileName",
+            "in": "path",
+            "description": "File name",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File deleted",
+            "content": {}
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateQuickAppRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "roomId": {
+            "type": "number"
+          },
+          "initialProperties": {
+            "type": "object",
+            "properties": {}
+          },
+          "initialInterfaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "initialView": {
+            "type": "object",
+            "properties": {}
+          }
+        },
+        "example": {
+          "name": "test",
+          "type": "com.fibaro.temperatureSensor",
+          "roomId": 3,
+          "initialProperties": {},
+          "initialInterfaces": [],
+          "initialView": {}
+        }
+      },
+      "QuickAvailableTypeDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "type": "com.fibaro.binarySwitch",
+          "label": "binary switch"
+        }
+      },
+      "QuickAppFile": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "isOpen": {
+            "type": "boolean"
+          },
+          "isMain": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "name": "main",
+          "type": "lua",
+          "isOpen": false,
+          "isMain": true
+        }
+      },
+      "QuickAppFileDetails": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "isOpen": {
+            "type": "boolean"
+          },
+          "isMain": {
+            "type": "boolean"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "name": "main",
+          "type": "lua",
+          "isOpen": false,
+          "isMain": true,
+          "content": "function test()...."
+        }
+      },
+      "QuickAppExportRequest": {
+        "type": "object",
+        "properties": {
+          "encrypted": {
+            "type": "boolean",
+            "description": "If true encrypted file will be exported."
+          },
+          "serialNumbers": {
+            "type": "array",
+            "description": "List of serial numbers with the possibility to import the quick app. Requires encrypted field to be true.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "example": {
+          "encrypted": true,
+          "serialNumbers": ["HC3-987654321", "HC3L-987654321", "YH-987654321"]
+        }
+      },
+      "HCErrorDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "",
+            "enum": ["ERROR", "WARNING", "QUESTION"]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "description": "Datild infomations about an error."
+          }
+        },
+        "example": {
+          "type": "ERROR",
+          "reason": "No internet connection.",
+          "message": "Cannot create an encrypted Quick App without internet connection. Please check your network settings, or contact your internet provider."
+        }
+      }
+    }
+  }
+}

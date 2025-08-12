@@ -1,0 +1,220 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Mobile interactive push notifications",
+    "description": "Mobile interactive push notifications API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/mobile/push": {
+      "post": {
+        "tags": ["push"],
+        "summary": "Create push message",
+        "operationId": "createPushMessage",
+        "parameters": [],
+        "requestBody": {
+          "description": "Push body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Created",
+            "content": {}
+          },
+          "400": {
+            "description": "Bad requst",
+            "content": {}
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {}
+          }
+        }
+      }
+    },
+    "/mobile/push/{id}": {
+      "post": {
+        "tags": ["push"],
+        "summary": "Do action of push.",
+        "operationId": "pushDoAction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of an existing push",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {}
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {}
+          }
+        }
+      },
+      "delete": {
+        "tags": ["push"],
+        "summary": "Delete push.",
+        "operationId": "deletePush",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID of an existing push",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {}
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {}
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreatePushRequest": {
+        "type": "object",
+        "properties": {
+          "mobileDevices": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "description": "Mobile device id",
+              "example": 10
+            },
+            "description": "List of push receivers.",
+            "example": [10, 11]
+          },
+          "title": {
+            "type": "string",
+            "description": "Push title.",
+            "example": "Sample title"
+          },
+          "message": {
+            "type": "string",
+            "description": "Push message",
+            "example": "Sample message"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["YES_NO", "RUN_CANCEL"],
+            "description": "Push category",
+            "example": "YES_NO"
+          },
+          "service": {
+            "type": "string",
+            "enum": ["Scene", "Device"],
+            "default": "Scene",
+            "description": "Service where action will be run.",
+            "example": "Scene"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["Run", "RunAction"],
+            "default": "Run",
+            "description": "Action which will be run on the service. Value depends on service value.",
+            "example": "Run"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "sceneId": {
+                    "type": "integer",
+                    "description": "Id of the scene which will be executed.",
+                    "example": 1
+                  }
+                },
+                "required": ["sceneId"],
+                "example": {
+                  "sceneId": 1
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "integer",
+                    "description": "Id of the device on which the action will be called.",
+                    "example": 100
+                  },
+                  "actionName": {
+                    "type": "string",
+                    "description": "Action name which will be called on the device.",
+                    "example": "setValue"
+                  },
+                  "args": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": "Action argument.",
+                      "example": "100"
+                    },
+                    "description": "Action arguments.",
+                    "example": ["100"]
+                  }
+                },
+                "required": ["deviceId", "actionName"],
+                "example": {
+                  "deviceId": 100,
+                  "actionName": "setValue",
+                  "args": ["100"]
+                }
+              }
+            ],
+            "description": "Push data.",
+            "example": {
+              "sceneId": 1
+            }
+          }
+        },
+        "required": ["mobileDevices", "title", "message", "category", "data"],
+        "example": {
+          "mobileDevices": [10, 11],
+          "title": "Sample title",
+          "message": "Sample message",
+          "category": "YES_NO",
+          "service": "Scene",
+          "action": "Run",
+          "data": {
+            "sceneId": 1
+          }
+        }
+      }
+    }
+  }
+}

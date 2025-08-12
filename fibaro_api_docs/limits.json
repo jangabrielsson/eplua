@@ -1,0 +1,93 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Limits API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/limits": {
+      "get": {
+        "tags": ["limits"],
+        "summary": "Get limits object",
+        "operationId": "getLimits",
+        "responses": {
+          "200": {
+            "description": "Returns limits data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Limits"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Limits": {
+        "type": "object",
+        "properties": {
+          "scenesLimit": {
+            "type": "integer"
+          },
+          "scenesUsed": {
+            "type": "integer"
+          },
+          "pluginsLimit": {
+            "type": "integer"
+          },
+          "pluginsUsed": {
+            "type": "integer"
+          },
+          "quickAppsLimit": {
+            "type": "integer"
+          },
+          "quickAppsUsed": {
+            "type": "integer"
+          },
+          "zwaveDevicesLimit": {
+            "type": "integer"
+          },
+          "zwaveDevicesUsed": {
+            "type": "integer"
+          },
+          "niceDevicesLimit": {
+            "type": "integer"
+          },
+          "niceDevicesUsed": {
+            "type": "integer"
+          },
+          "ipCamerasLimit": {
+            "type": "integer"
+          },
+          "ipCamerasUsed": {
+            "type": "integer"
+          }
+        },
+        "example": {
+          "scenesLimit": 15,
+          "scenesUsed": 1,
+          "pluginsLimit": 3,
+          "pluginsUsed": 1,
+          "quickAppsLimit": 7,
+          "quickAppsUsed": 2,
+          "zwaveDevicesLimit": 75,
+          "zwaveDevicesUsed": 20,
+          "niceDevicesLimit": 25,
+          "niceDevicesUsed": 5,
+          "ipCamerasLimit": 2,
+          "ipCamerasUsed": 0
+        }
+      }
+    }
+  }
+}

@@ -225,53 +225,7 @@ _PY.call_http("https://httpbin.org/get", {
 
 ---
 
-## Threading Functions
 
-### `_PY.run_in_thread(callback_id, delay_seconds)`
-**Defined in:** Python (`threading_support.py`)  
-**Description:** Runs a task in a separate thread and posts the result back via callback.
-
-**Parameters:**
-- `callback_id` (number): Callback ID from `registerCallback`
-- `delay_seconds` (number): Simulation delay (default: 1.0)
-
-**Returns:** None (result delivered via callback)
-
-**Example:**
-```lua
-local callback_id = _PY.registerCallback(function(result)
-    if result.error then
-        print("Thread error:", result.error)
-    else
-        print("Thread result:", result.message)
-        print("Thread ID:", result.thread_id)
-    end
-end)
-
-_PY.run_in_thread(callback_id, 2.0)
-```
-
-### `_PY.cpu_intensive_task(callback_id, iterations)`
-**Defined in:** Python (`threading_support.py`)  
-**Description:** Performs a CPU-intensive calculation in a separate thread.
-
-**Parameters:**
-- `callback_id` (number): Callback ID from `registerCallback`
-- `iterations` (number): Number of iterations (default: 1,000,000)
-
-**Returns:** None (result delivered via callback)
-
-### `_PY.file_operation(callback_id, operation, filename, content)`
-**Defined in:** Python (`threading_support.py`)  
-**Description:** Performs file operations in a separate thread.
-
-**Parameters:**
-- `callback_id` (number): Callback ID from `registerCallback`
-- `operation` (string): Operation type ("read" or "write")
-- `filename` (string): File path
-- `content` (string): Content for write operations (optional)
-
-**Returns:** None (result delivered via callback)
 
 ---
 

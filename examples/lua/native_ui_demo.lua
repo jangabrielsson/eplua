@@ -30,10 +30,16 @@ local ui = nativeUI.quickUI()
     :slider("Level", 0, 100, 25, "level_slider")
     :separator("sep2")
     :label("Status: Ready", "device_status")
-    :button("Btn 1", "btn1", false, "action_btn1")
-    :button("Btn 2", "btn2", false, "action_btn2")
-    :button("Btn 3", "btn3", false, "action_btn3")
-    :button("Btn 5", "btn5", false, "action_btn5")
+    :buttonRow({
+        {text = "Btn 1", action = "btn1", isPrimary = true},
+        {text = "Btn 2", action = "btn2", isPrimary = false},
+        {text = "Btn 3", action = "btn3", isPrimary = false},
+        {text = "Btn 5", action = "btn5", isPrimary = false},
+    })
+    -- :button("Btn 1", "btn1", false, "action_btn1")
+    -- :button("Btn 2", "btn2", false, "action_btn2")
+    -- :button("Btn 3", "btn3", false, "action_btn3")
+    -- :button("Btn 5", "btn5", false, "action_btn5")
     :separator("sep3")
     :slider("Secondary", 0, 100, 50, "secondary_slider")
     :dropdown("Mode", {"Auto", "Manual", "Off"}, "Auto", "mode_dropdown")

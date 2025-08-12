@@ -612,15 +612,16 @@ function net.WebSocketClientTls(options)
 end
 
 -- WebSocket Server implementation
-function net.WebSocketServer(options)
+function net.WebSocketServer(options,system)
   local self = {
     server_id = nil,
     running = false,
     clients = {},
     callbacks = {},
+    system = system or false,
     options = options or {}
   }
-  
+
   setmetatable(self, { __tostring = function(_) return "WebSocketServer object: "..tostring(self.server_id) end })
   
   -- Start the WebSocket server
@@ -689,7 +690,8 @@ function net.WebSocketServer(options)
     end
     
     -- Register the callback and start the server
-    local callback_id = _PY.registerCallback(server_callback, true)  -- persistent
+    local system = self.system or false
+    local callback_id = _PY.registerCallback(server_callback, true, system)  -- persistent
     self.callback_id = callback_id
     
     _PY.websocket_server_start(self.server_id, host, port, callback_id)

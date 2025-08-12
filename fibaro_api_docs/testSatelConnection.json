@@ -1,0 +1,75 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Test Satel Connection API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/testSatelConnection": {
+      "post": {
+        "tags": ["testSatelConnection"],
+        "summary": "Get Satel Connection Status",
+        "operationId": "getTestSatelConnection",
+        "requestBody": {
+          "description": "Satel Test Body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestSatelConnectionRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Returns status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestSatelConnectionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TestSatelConnectionRequestDto": {
+        "type": "object",
+        "properties": {
+          "ipAddress": {
+            "type": "string"
+          },
+          "portNumber": {
+            "type": "integer"
+          }
+        },
+        "example": {
+          "ipAddress": "1.1.1.1",
+          "port": "8923"
+        }
+      },
+      "TestSatelConnectionDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "status": "ok"
+        }
+      }
+    }
+  }
+}

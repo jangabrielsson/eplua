@@ -1,0 +1,63 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Home Center",
+    "description": "Set ZWave Engine API",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "paths": {
+    "/service/setZwaveEngine": {
+      "post": {
+        "tags": ["zwave"],
+        "summary": "Set ZWave Engine 2.0 or 3.0",
+        "operationId": "setZwaveEngine",
+        "requestBody": {
+          "description": "setZwaveEngine body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetZwaveEngineDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "OK. ZWave Engine Set. Reboot in progress.",
+            "content": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {}
+          }
+        },
+        "x-codegen-request-body-name": "body"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SetZwaveEngineDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/ZwaveEngineVersion"
+          },
+          "reboot": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "version": "3.0",
+          "reboot": false
+        }
+      }
+    }
+  }
+}
