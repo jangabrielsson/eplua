@@ -1,6 +1,9 @@
 -- Test the config table with CLI flags
 print('=== EPLua Config Test ===')
 for k,v in pairs(_PY.config) do
+    if type(v) == 'table' then
+        v = json.encode(v)  -- Convert table to JSON string for better readability
+    end
     print(k .. ': ' .. tostring(v))
 end
 print('========================')
@@ -13,4 +16,3 @@ print('Offline mode: ' .. tostring(_PY.config.offline))
 print('Debugger enabled: ' .. tostring(_PY.config.debugger))
 print('Debugger host: ' .. tostring(_PY.config.debugger_host))
 print('Debugger port: ' .. tostring(_PY.config.debugger_port))
-setInterval(function() print('tick') end, 1000)

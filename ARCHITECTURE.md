@@ -1,6 +1,6 @@
 # EPLua Architecture
 
-EPLua is a Python-based Lua execution engine with native UI support, async timers, and multiple communication interfaces. This document describes the system architecture, threading model, and component interactions.
+EPLua is a Python-based Lua execution engine with native UI support, async timers, Fibaro QuickApp emulation, and multiple communication interfaces. This document describes the system architecture, threading model, and component interactions.
 
 ## System Overview
 
@@ -8,7 +8,8 @@ EPLua consists of several key components that work together to provide a rich Lu
 
 - **Lua Engine**: Core script execution with async timer support
 - **GUI System**: Native tkinter-based UI with thread-safe bridge
-- **Web Server**: FastAPI-based HTTP API for remote control
+- **QuickApp System**: Browser-based Fibaro QuickApp emulation with real-time updates
+- **Web Server**: FastAPI-based HTTP API with WebSocket support for remote control
 - **Telnet Server**: Async REPL interface for interactive debugging
 - **REPL Client**: Enhanced command-line interface with history and completion
 
@@ -29,11 +30,14 @@ graph TB
             LUA_ENGINE[Lua Engine]
             TIMER_MGR[Timer Manager]
             ASYNC_LOOP[Async Event Loop]
+            FIBARO_SDK[Fibaro SDK]
         end
         
-        subgraph "Web Server Thread"
+        subgraph "Web Server Process"
             FASTAPI[FastAPI Server]
+            WEBSOCKET[WebSocket Handler]
             WEB_ROUTES[HTTP Routes]
+            QUICKAPP_API[QuickApp API]
         end
         
         subgraph "Telnet Server"
@@ -42,8 +46,10 @@ graph TB
         end
     end
     
-    subgraph "External Processes"
+    subgraph "External Clients"
         REPL_CLIENT[REPL Client Process]
+        BROWSER[Browser Windows]
+        QUICKAPP_UI[QuickApp Desktop UI]
     end
     
     CLI --> GUI
@@ -51,11 +57,16 @@ graph TB
     GUI <--> GUI_BRIDGE
     GUI_BRIDGE <--> LUA_ENGINE
     LUA_ENGINE --> TIMER_MGR
+    LUA_ENGINE --> FIBARO_SDK
     TIMER_MGR --> ASYNC_LOOP
     LUA_ENGINE --> FASTAPI
     LUA_ENGINE --> TELNET
+    FASTAPI --> WEBSOCKET
+    FASTAPI --> QUICKAPP_API
     TELNET <--> TELNET_CLIENTS
     TELNET_CLIENTS <--> REPL_CLIENT
+    WEBSOCKET <--> BROWSER
+    QUICKAPP_API <--> QUICKAPP_UI
 ```
 
 ## Component Details
@@ -130,15 +141,69 @@ graph TB
 - Event-driven UI updates
 - Queue-based command processing
 
-### 3. Web Server (`src/eplua/web_server.py`)
+### 3. QuickApp System (`src/eplua/static/quickapp_ui.html`, `src/eplua/fastapi_process.py`)
 
-FastAPI-based HTTP API for remote control and monitoring:
+Browser-based Fibaro QuickApp emulation with real-time WebSocket updates:
+
+```mermaid
+graph TB
+    subgraph "Browser UI"
+        DESKTOP_UI[Desktop Windows]
+        QUICKAPP_HTML[QuickApp UI HTML]
+        WEBSOCKET_CLIENT[WebSocket Client]
+        PING_PONG[Ping/Pong Health Check]
+    end
+    
+    subgraph "FastAPI Server"
+        QUICKAPP_ROUTES[QuickApp Routes]
+        WEBSOCKET_SERVER[WebSocket Server]
+        UI_BROADCAST[UI Update Broadcast]
+        IPC_QUEUE[IPC Message Queue]
+    end
+    
+    subgraph "Lua Engine"
+        FIBARO_QA[QuickApp Instance]
+        UPDATE_VIEW[updateView() calls]
+        UI_CALLBACKS[UI Button Callbacks]
+    end
+    
+    DESKTOP_UI --> QUICKAPP_HTML
+    QUICKAPP_HTML --> WEBSOCKET_CLIENT
+    WEBSOCKET_CLIENT <--> WEBSOCKET_SERVER
+    WEBSOCKET_CLIENT --> PING_PONG
+    WEBSOCKET_SERVER --> UI_BROADCAST
+    UI_BROADCAST --> IPC_QUEUE
+    IPC_QUEUE --> FIBARO_QA
+    UPDATE_VIEW --> UI_BROADCAST
+    UI_CALLBACKS --> FIBARO_QA
+```
+
+**Key Features:**
+- Real-time UI updates via WebSocket
+- Development-friendly connection management
+- Automatic window reuse and cleanup
+- Browser-based QuickApp UI rendering
+- Ping/pong health check (5-second intervals)
+- UI state preservation during reconnection
+- Manual refresh capability for development workflow
+
+**Connection Management:**
+- **Simple Ping/Pong**: Clean 5-second ping with 8-second timeout
+- **Auto-reconnection**: Conservative reconnection with 10-second delays
+- **Status Preservation**: UI state maintained when server restarts
+- **Focus Detection**: Automatic reconnection check on window focus
+- **Manual Refresh**: Developer-controlled UI refresh button
+
+### 4. Web Server (`src/eplua/fastapi_process.py`, `src/eplua/web_server.py`)
+
+FastAPI-based HTTP API with WebSocket support for remote control and QuickApp emulation:
 
 ```mermaid
 graph LR
-    subgraph "Web Server Thread"
+    subgraph "FastAPI Process"
         FASTAPI[FastAPI App]
-        ROUTES[HTTP Routes]
+        HTTP_ROUTES[HTTP Routes]
+        WEBSOCKET_ROUTES[WebSocket Routes]
         UVICORN[Uvicorn Server]
     end
     
@@ -146,23 +211,32 @@ graph LR
         ROOT[/]
         STATUS[/status]
         EXECUTE[/execute]
-        CALLBACKS[/engine/callbacks]
+        QUICKAPP[/plua/quickApp/*]
+        WEBSOCKET[/ws WebSocket]
+        UI_CALLBACK[/api/plugins/callUIEvent]
     end
     
     subgraph "Engine Integration"
         LUA_ENGINE[Lua Engine]
+        IPC_QUEUE[IPC Queue]
         THREAD_EXEC[Thread Execution]
     end
     
-    FASTAPI --> ROUTES
-    ROUTES --> ROOT
-    ROUTES --> STATUS
-    ROUTES --> EXECUTE
-    ROUTES --> CALLBACKS
+    FASTAPI --> HTTP_ROUTES
+    FASTAPI --> WEBSOCKET_ROUTES
+    HTTP_ROUTES --> ROOT
+    HTTP_ROUTES --> STATUS
+    HTTP_ROUTES --> EXECUTE
+    HTTP_ROUTES --> QUICKAPP
+    HTTP_ROUTES --> UI_CALLBACK
+    WEBSOCKET_ROUTES --> WEBSOCKET
     FASTAPI --> UVICORN
     EXECUTE --> THREAD_EXEC
+    QUICKAPP --> IPC_QUEUE
+    UI_CALLBACK --> IPC_QUEUE
+    WEBSOCKET --> IPC_QUEUE
     THREAD_EXEC --> LUA_ENGINE
-    STATUS --> LUA_ENGINE
+    IPC_QUEUE <--> LUA_ENGINE
 ```
 
 **Key Features:**
@@ -170,8 +244,11 @@ graph LR
 - Real-time engine status monitoring
 - JSON-based function calling
 - Thread-safe execution integration
+- WebSocket support for real-time updates
+- QuickApp API endpoints for Fibaro emulation
+- IPC queue for cross-process communication
 
-### 4. Telnet Server (`src/eplua/lua_bindings.py`)
+### 5. Telnet Server (`src/eplua/lua_bindings.py`)
 
 Async telnet server for interactive REPL access:
 
@@ -212,7 +289,7 @@ graph TB
 - Integrated with Lua print system
 - Automatic stdout fallback
 
-### 5. REPL Client (`src/eplua/repl.py`)
+### 6. REPL Client (`src/eplua/repl.py`)
 
 Enhanced command-line interface with advanced features:
 
@@ -247,7 +324,68 @@ graph LR
 
 ## Data Flow Diagrams
 
-### 1. Script Execution Flow
+### 1. QuickApp UI Update Flow
+
+```mermaid
+sequenceDiagram
+    participant QA as QuickApp Lua
+    participant Engine as Lua Engine
+    participant FastAPI as FastAPI Process
+    participant WS as WebSocket
+    participant Browser as Browser UI
+    
+    QA->>Engine: updateView(elementId, property, value)
+    Engine->>FastAPI: IPC message (ui_update)
+    FastAPI->>WS: Broadcast update to clients
+    WS->>Browser: WebSocket message
+    Browser->>Browser: Update DOM element
+    
+    Note over Browser: Real-time UI update without page refresh
+```
+
+### 2. QuickApp Button Callback Flow
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant Browser as Browser UI
+    participant FastAPI as FastAPI Process
+    participant Engine as Lua Engine
+    participant QA as QuickApp Lua
+    
+    User->>Browser: Click button
+    Browser->>FastAPI: POST /api/plugins/callUIEvent
+    FastAPI->>Engine: IPC callback message
+    Engine->>QA: Execute callback function
+    QA->>Engine: updateView() calls
+    Engine->>FastAPI: UI update messages
+    FastAPI->>Browser: WebSocket broadcast
+    Browser->>Browser: Update UI elements
+```
+
+### 3. Connection Health Check Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser as Browser UI
+    participant WS as WebSocket
+    participant FastAPI as FastAPI Server
+    
+    loop Every 5 seconds
+        Browser->>WS: Send ping
+        WS->>FastAPI: Forward ping
+        FastAPI->>WS: Send pong
+        WS->>Browser: Receive pong
+        
+        alt No pong within 8 seconds
+            Browser->>Browser: Close WebSocket
+            Browser->>Browser: Update status: "Disconnected"
+            Browser->>WS: Attempt reconnection
+        end
+    end
+```
+
+### 4. Script Execution Flow
 
 ```mermaid
 sequenceDiagram
@@ -255,25 +393,25 @@ sequenceDiagram
     participant Engine as Lua Engine
     participant Timer as Timer Manager
     participant GUI as GUI Bridge
-    participant Web as Web Server
+    participant FastAPI as FastAPI Process
     participant Telnet as Telnet Server
     
     CLI->>Engine: Load and execute script
     Engine->>Timer: Register timers/callbacks
     Engine->>GUI: Create windows/UI elements
-    Engine->>Web: Start web server (if requested)
+    Engine->>FastAPI: Start FastAPI process (if requested)
     Engine->>Telnet: Start telnet server
     
     loop Script Execution
         Engine->>Timer: Process timers
         Timer->>Engine: Execute callbacks
         Engine->>GUI: Update UI
-        Engine->>Web: Handle HTTP requests
+        Engine->>FastAPI: Handle IPC messages
         Engine->>Telnet: Handle REPL commands
     end
 ```
 
-### 2. GUI Command Flow
+### 5. GUI Command Flow
 
 ```mermaid
 sequenceDiagram
@@ -293,7 +431,7 @@ sequenceDiagram
     Bridge->>Lua: Return window ID
 ```
 
-### 3. Web API Flow
+### 6. Web API Flow
 
 ```mermaid
 sequenceDiagram
@@ -310,7 +448,7 @@ sequenceDiagram
     FastAPI->>Client: JSON response
 ```
 
-### 4. REPL Communication Flow
+### 7. REPL Communication Flow
 
 ```mermaid
 sequenceDiagram
@@ -335,9 +473,10 @@ sequenceDiagram
 
 1. **Main Thread**: GUI management and user interaction
 2. **Engine Thread**: Lua script execution and async operations
-3. **Web Server Thread**: HTTP API handling
+3. **FastAPI Process**: HTTP/WebSocket API handling (separate process)
 4. **Telnet Server**: Async REPL server (runs in engine thread)
 5. **REPL Client Process**: Separate process for enhanced CLI
+6. **Browser Processes**: QuickApp UI windows (external browser windows)
 
 ### Thread Communication
 
@@ -348,6 +487,13 @@ graph TB
             CMD_QUEUE[Command Queue]
             RESULT_QUEUE[Result Queue]
             CALLBACK_QUEUE[Callback Queue]
+            IPC_QUEUE[IPC Message Queue]
+        end
+        
+        subgraph "Process-based"
+            FASTAPI_PROCESS[FastAPI Process]
+            IPC_MULTIPROCESSING[Multiprocessing Queue]
+            WEBSOCKET_BROADCAST[WebSocket Broadcast]
         end
         
         subgraph "Async-based"
@@ -358,17 +504,20 @@ graph TB
         
         subgraph "Socket-based"
             TELNET_SOCKET[Telnet Socket]
-            WEB_SOCKET[Web Socket]
+            WEBSOCKET[WebSocket Connections]
         end
     end
     
     CMD_QUEUE --> ASYNC_LOOP
     RESULT_QUEUE --> ASYNC_LOOP
     CALLBACK_QUEUE --> ASYNC_LOOP
+    IPC_QUEUE --> IPC_MULTIPROCESSING
+    IPC_MULTIPROCESSING --> FASTAPI_PROCESS
+    FASTAPI_PROCESS --> WEBSOCKET_BROADCAST
+    WEBSOCKET_BROADCAST --> WEBSOCKET
     ASYNC_LOOP --> TELNET_TASK
     ASYNC_LOOP --> TIMER_TASKS
     TELNET_TASK --> TELNET_SOCKET
-    TIMER_TASKS --> WEB_SOCKET
 ```
 
 ## Usage Patterns
@@ -420,6 +569,27 @@ _PY.start_web_server("127.0.0.1", 8000)
 2. REPL client connects to telnet server
 3. User types commands interactively
 4. Results displayed in real-time
+
+### 5. Fibaro QuickApp Development
+
+```bash
+./run.sh --fibaro quickapp.lua
+```
+
+**Flow:**
+1. CLI starts with Fibaro SDK enabled
+2. FastAPI process starts with QuickApp endpoints
+3. Lua script defines QuickApp with UI elements
+4. Browser windows automatically open (if `--%%desktop:true`)
+5. Real-time UI updates via WebSocket
+6. Development cycle: edit script → restart → preserved UI state
+
+**Development Features:**
+- **UI State Preservation**: Browser windows keep last UI state during server restart
+- **Manual Refresh**: Developer can manually refresh UI via button
+- **Connection Health**: Clear status indicators and automatic reconnection
+- **Background Updates**: UI updates work even when window is not focused
+- **Multiple Windows**: Support for multiple QuickApp instances simultaneously
 
 ## Configuration and Extensions
 
@@ -513,35 +683,56 @@ graph TB
 - **Error Handling**: Comprehensive error handling prevents crashes
 - **Input Validation**: All external inputs are validated
 
+## Recent Enhancements
+
+### Implemented Features
+
+1. **✅ WebSocket Support**: Real-time bidirectional communication for QuickApp UI
+2. **✅ Fibaro QuickApp Emulation**: Complete QuickApp SDK with UI rendering
+3. **✅ Browser-based UI**: Modern web-based UI with real-time updates
+4. **✅ Development-friendly Workflow**: UI state preservation and manual refresh
+5. **✅ Connection Health Management**: Robust ping/pong system with automatic reconnection
+6. **✅ Multi-process Architecture**: Separate FastAPI process for better isolation
+
+### Connection Management Improvements
+
+- **Simplified Health Checks**: Clean 5-second ping/pong system
+- **Conservative Reconnection**: 10-second delays, fewer attempts
+- **Status Preservation**: UI state maintained during server restarts
+- **Developer Controls**: Manual refresh button and clear status indicators
+
 ## Future Enhancements
 
 ### Planned Features
 
-1. **WebSocket Support**: Real-time bidirectional communication
-2. **Plugin System**: Dynamic loading of Python extensions
-3. **Distributed Mode**: Multi-node EPLua clusters
-4. **Performance Profiling**: Built-in performance monitoring
-5. **Advanced Debugging**: Integrated debugger with breakpoints
+1. **Plugin System**: Dynamic loading of Python extensions
+2. **Distributed Mode**: Multi-node EPLua clusters  
+3. **Performance Profiling**: Built-in performance monitoring
+4. **Advanced Debugging**: Integrated debugger with breakpoints
+5. **Mobile UI Support**: Touch-friendly QuickApp interfaces
 
 ### Architecture Evolution
 
 ```mermaid
 graph LR
     subgraph "Current"
-        SINGLE[Single Process]
-        THREADS[Multi-threaded]
-        ASYNC[Async I/O]
+        SINGLE[Single Process + FastAPI Process]
+        THREADS[Multi-threaded Engine]
+        WEBSOCKET[WebSocket Support]
+        QUICKAPP[QuickApp Emulation]
     end
     
     subgraph "Future"
-        CLUSTER[Multi-process]
-        MICROSERVICES[Microservices]
-        DISTRIBUTED[Distributed]
+        CLUSTER[Multi-process Clusters]
+        MICROSERVICES[Microservices Architecture]
+        DISTRIBUTED[Distributed QuickApps]
+        MOBILE[Mobile UI Support]
     end
     
     SINGLE --> CLUSTER
     THREADS --> MICROSERVICES
-    ASYNC --> DISTRIBUTED
+    WEBSOCKET --> DISTRIBUTED
+    QUICKAPP --> MOBILE
 ```
 
-This architecture provides a solid foundation for building complex Lua applications with rich UI, network capabilities, and high performance while maintaining simplicity and extensibility. 
+This architecture provides a solid foundation for building complex Lua applications with rich UI, network capabilities, Fibaro QuickApp emulation, and high performance while maintaining simplicity and extensibility. The recent addition of the QuickApp system makes EPLua particularly well-suited for Fibaro home automation development with a modern, web-based development workflow. 

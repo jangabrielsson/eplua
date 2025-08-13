@@ -1,4 +1,21 @@
-#!/usr/bin/env python3
+#!/usr/binimport asyncio
+import sys
+import argparse
+import io
+import os
+import subprocess
+import logging
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+# Handle tomllib import for different Python versions
+try:
+    import tomllib  # Python 3.11+
+except ImportError:
+    try:
+        import tomli as tomllib  # Fallback for older Python versions
+    except ImportError:
+        tomllib = Nonen3
 """
 EPLua CLI - Python Lua Engine with Web UI
 
@@ -15,6 +32,7 @@ import io
 import os
 import subprocess
 import logging
+import tomllib
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -48,6 +66,37 @@ def setup_unicode_output():
 setup_unicode_output()
 
 
+def get_version():
+    """Get EPLua version from pyproject.toml"""
+    try:
+        if tomllib is None:
+            # Fallback: try to parse manually if tomllib is not available
+            current_dir = Path(__file__).parent
+            pyproject_path = current_dir.parent.parent / "pyproject.toml"
+            
+            if pyproject_path.exists():
+                with open(pyproject_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip().startswith("version ="):
+                            # Extract version from line like: version = "0.1.0"
+                            version_part = line.split("=", 1)[1].strip()
+                            return version_part.strip('"\'')
+            return "unknown"
+        
+        # Use tomllib if available
+        current_dir = Path(__file__).parent
+        pyproject_path = current_dir.parent.parent / "pyproject.toml"
+        
+        if pyproject_path.exists():
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+                return data.get("project", {}).get("version", "unknown")
+        else:
+            return "unknown"
+    except Exception:
+        return "unknown"
+
+
 def display_startup_greeting(config: Dict[str, Any]):
     """Display a proper startup greeting with version information"""
     import sys
@@ -64,7 +113,7 @@ def display_startup_greeting(config: Dict[str, Any]):
     
     api_port = config.get("api_port", 8080)
     telnet_port = config.get("telnet_port", 8023)
-    eplua_version = "0.1.0"  # From pyproject.toml
+    eplua_version = get_version()
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     
     # ANSI color codes
@@ -526,6 +575,12 @@ def main():
         description="EPLua - Python Lua Engine with Web UI"
     )
     parser.add_argument(
+        "-v", "--version", action="store_true", help="Show version information"
+    )
+    parser.add_argument(
+        "--init-qa", action="store_true", help="Initialize a new QuickApp project"
+    )
+    parser.add_argument(
         "script", nargs="?", help="Lua script file to run (optional)"
     )
     parser.add_argument(
@@ -544,7 +599,15 @@ def main():
         "-o",
         "--offline",
         action="store_true",
-        help="Run in offline mode (disable network connections)",
+        help="Run in offline mode (disable HC3 connections)",
+    )
+    parser.add_argument(
+       "--desktop",
+        help="Override desktop UI mode for QuickApp windows (true/false). If not specified, QA decides based on --%%desktop header",
+        nargs="?",
+        const="true",
+        type=str,
+        default=None
     )
     parser.add_argument(
         "--nodebugger",
@@ -558,12 +621,16 @@ def main():
     )
     parser.add_argument(
         "-l",
-        help="Ignored, for compatibility with Lua CLI",
+        help="Ignored, for Lua CLI compatibility",
     )
     parser.add_argument(
         "--header",
         action="append",
         help="Add header string (can be used multiple times)",
+    )
+    parser.add_argument(
+        "-a", "--args",
+        help="Add argument string to pass to the script",
     )
     parser.add_argument(
         "--api-port",
@@ -595,10 +662,23 @@ def main():
 
     args = parser.parse_args()
 
+    # Handle version command
+    if args.version:
+        version = get_version()
+        print(f"EPLua {version}")
+        return
+
+    # Handle QuickApp project initialization
+    if args.init_qa:
+        from eplua.scaffolding import init_quickapp_project
+        init_quickapp_project()
+        return
+
     # Prepare config
     config = get_config()
     config["loglevel"] = args.loglevel
     config["offline"] = args.offline
+    config["desktop"] = args.desktop
     config["debugger"] = not args.nodebugger
     config["fibaro"] = args.fibaro
     config["headers"] = args.header or []
@@ -607,6 +687,7 @@ def main():
     config["api_port"] = args.api_port
     config["telnet_port"] = args.telnet_port
     config["runFor"] = args.run_for
+    config["args"] = args.args
 
     if args.interactive:
         run_interactive_repl(config)
